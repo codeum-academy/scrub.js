@@ -783,6 +783,10 @@ class Stage {
                     this.context.fillText("x: " + sprite.x, x, y);
                     y += 20;
                     this.context.fillText("y: " + sprite.y, x, y);
+                    y += 20;
+                    this.context.fillText("direction: " + sprite.direction, x, y);
+                    y += 20;
+                    this.context.fillText("costume: " + sprite.costumeNames[sprite.costumeIndex], x, y);
                 };
 
                 if (this.debugMode === 'hover') {
