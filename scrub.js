@@ -381,6 +381,9 @@ class Sprite {
         this.stage = Registry.getInstance().get('stage');
         this.stage.addSprite(this);
 
+        this.x = this.stage.width / 2;
+        this.y = this.stage.height / 2;
+
         for (const costumePath of costumePaths) {
             this.addCostume(costumePath);
         }
