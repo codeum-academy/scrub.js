@@ -475,10 +475,10 @@ class Sprite {
     }
 
     bounceOnEdge() {
-        if(this.realY < 0 || this.realY + this.height > this.stage.height) {
+        if(this.realY < 0 + this.stage.padding || this.realY + this.height > this.stage.height - this.stage.padding) {
             this.direction = 180 - this.direction;
         }
-        if (this.realX < 0 || this.realX + this.width > this.stage.width) {
+        if (this.realX < 0 + this.stage.padding || this.realX + this.width > this.stage.width - this.stage.padding) {
             this.direction *= -1;
         }
     }
@@ -498,8 +498,10 @@ class Sprite {
 
     touchEdge() {
         const touch =
-            this.realX < 0 || this.realX + this.width > this.stage.width ||
-            this.realY < 0 || this.realY + this.height > this.stage.height
+            this.realX < 0 + this.stage.padding ||
+            this.realX + this.width > this.stage.width - this.stage.padding - this.stage.padding ||
+            this.realY < 0 + this.stage.padding ||
+            this.realY + this.height > this.stage.height - this.stage.padding - this.stage.padding
         ;
 
         return touch;
@@ -637,6 +639,7 @@ class Stage {
     keyboard;
     mouse;
     styles;
+    padding = 0;
     // none, hover, forever;
     debugMode = "none";
 
