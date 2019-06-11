@@ -709,7 +709,7 @@ class Stage {
         if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
             this.context.translate(x+w/2, y+h/2);
-            this.context.rotate(direction * Math.PI/180.0);
+            this.context.rotate(direction * Math.PI / 180);
             this.context.translate(-x-w/2, -y-h/2);
         }
 
@@ -719,8 +719,7 @@ class Stage {
             this.context.scale(-1, 1);
 
             // mirror image
-
-            this.context.drawImage(image, -w / 2, y);
+            this.context.drawImage(image, -w / 2, y, w, h);
 
         } else {
             // usual image
@@ -814,7 +813,8 @@ class Stage {
                 sprite.y - sprite.height / 2,
                 sprite.width,
                 sprite.height,
-                sprite.direction
+                sprite.direction,
+                sprite.rotateStyle
             );
         }
     }
