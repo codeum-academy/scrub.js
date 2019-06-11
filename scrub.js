@@ -361,7 +361,7 @@ class Costume {
 class Sprite {
     x = 0;
     y = 0;
-    degrees = 0;
+    dir = 0;
     size = 100;
     hidden = false;
     costumeIndex = null;
@@ -461,8 +461,8 @@ class Sprite {
     }
 
     move(steps) {
-        this.x += (steps * Math.sin(this.degrees * Math.PI / 180));
-        this.y -= (steps * Math.cos(this.degrees * Math.PI / 180));
+        this.x += (steps * Math.sin(this.direction * Math.PI / 180));
+        this.y -= (steps * Math.cos(this.direction * Math.PI / 180));
     }
 
     touchSprite(sprite) {
@@ -504,7 +504,7 @@ class Sprite {
 
         clone.x = this.x;
         clone.y = this.y;
-        clone.degrees = this.degrees;
+        clone.direction = this.direction;
         clone.size = this.size;
         clone.hidden = this.hidden;
         clone.costume = this.costume;
@@ -534,13 +534,15 @@ class Sprite {
         this.deleted = true;
     }
 
-    set degrees(degrees) {
-        if (degrees > 360) {
-            this.degrees = degrees - 360;
+    set direction (d) {
+        if ((d * 0) !== 0) return; // d is +/-Infinity or NaN
+        d = d % 360;
+        if (d < 0) d += 360;
+        this.dir = (d > 360) ? d - 360 : d;
+    }
 
-        } else {
-            this.degrees = degrees
-        }
+    get direction() {
+        return this.dir;
     }
 
     get width() {
@@ -642,17 +644,17 @@ class Stage {
         }
     }
 
-    drawImage(image, x, y, w, h, degrees){
-        if (degrees !== 0) {
+    drawImage(image, x, y, w, h, direction){
+        if (direction !== 0) {
             this.context.save();
             this.context.translate(x+w/2, y+h/2);
-            this.context.rotate(degrees*Math.PI/180.0);
+            this.context.rotate(direction*Math.PI/180.0);
             this.context.translate(-x-w/2, -y-h/2);
         }
 
         this.context.drawImage(image, x, y, w, h);
 
-        if (degrees !== 0) {
+        if (direction !== 0) {
             this.context.restore();
         }
     }
@@ -689,7 +691,14 @@ class Stage {
                 continue;
             }
 
-            this.drawImage(sprite.costume.image, sprite.x - sprite.width / 2, sprite.y - sprite.height / 2, sprite.width, sprite.height, sprite.degrees);
+            this.drawImage(
+                sprite.costume.image,
+                sprite.x - sprite.width / 2,
+                sprite.y - sprite.height / 2,
+                sprite.width,
+                sprite.height,
+                sprite.direction
+            );
         }
     }
 
