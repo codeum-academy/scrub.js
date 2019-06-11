@@ -359,6 +359,7 @@ class Costume {
 }
 
 class Sprite {
+    name = 'No name';
     x = 0;
     y = 0;
     dir = 0;
