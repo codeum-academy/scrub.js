@@ -280,6 +280,8 @@ class Keyboard {
 }
 
 class Mouse {
+    x = 0;
+    y = 0;
     isDown = false;
 
     constructor() {
@@ -289,6 +291,11 @@ class Mouse {
 
         document.addEventListener('mouseup', () => {
             this.isDown = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            this.x = e.clientX;
+            this.y = e.clientY;
         });
     }
 }
@@ -448,6 +455,17 @@ class Sprite {
         const touch =
             this.realX < 0 || this.realX + this.width > 480 ||
             this.realY < 0 || this.realY + this.height > 360
+        ;
+
+        return touch;
+    }
+
+    touchMouse() {
+        const touch =
+            this.stage.mouse.x > this.realX &&
+            this.stage.mouse.x < this.realX + this.width &&
+            this.stage.mouse.y > this.realY &&
+            this.stage.mouse.y < this.realY + this.height
         ;
 
         return touch;
