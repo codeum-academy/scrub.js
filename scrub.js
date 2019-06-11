@@ -637,6 +637,8 @@ class Stage {
     keyboard;
     mouse;
     styles;
+    // none, hover, forever;
+    debugMode = "none";
 
     constructor(canvasId = null, width = null, height = null, background = null) {
         this.keyboard = new Keyboard();
@@ -763,6 +765,34 @@ class Stage {
             if (sprite.hidden || !sprite.costume) {
                 continue;
             }
+
+            if (this.debugMode !== 'none') {
+                const fn = () => {
+                    const x = sprite.x - (this.context.measureText(sprite.name).width / 2);
+                    let y = sprite.realY + sprite.height + 20;
+
+                    this.context.font = '16px Arial';
+                    this.context.fillStyle = 'black';
+                    this.context.fillText(sprite.name, x, y);
+                    y += 20;
+
+                    this.context.font = '14px Arial';
+                    this.context.fillText("x: " + sprite.x, x, y);
+                    y += 20;
+                    this.context.fillText("y: " + sprite.y, x, y);
+                };
+
+                if (this.debugMode === 'hover') {
+                    if (sprite.touchMouse()) {
+                        fn();
+                    }
+                }
+
+                if (this.debugMode === 'forever') {
+                    fn();
+                }
+            }
+
 
             let phrase = sprite.getPhrase();
             if (phrase) {
