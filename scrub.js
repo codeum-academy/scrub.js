@@ -628,6 +628,7 @@ class Sprite {
 class Stage {
     canvas;
     context;
+    backgroundColor;
     background = null;
     backgroundIndex = null;
     backgrounds = [];
@@ -744,6 +745,11 @@ class Stage {
 
     render() {
         this.context.clearRect(0, 0, this.width, this.height);
+
+        if (this.backgroundColor) {
+            this.context.fillStyle = this.backgroundColor;
+            this.context.fillRect(0, 0, this.width, this.height);
+        }
 
         if (this.background) {
             this.context.drawImage(this.background, 0, 0, this.width, this.height);
