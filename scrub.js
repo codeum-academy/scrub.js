@@ -469,6 +469,15 @@ class Sprite {
         this.y -= (steps * Math.cos(this.direction * Math.PI / 180));
     }
 
+    bounceOnEdge() {
+        if(this.realY < 0 || this.realY + this.height > this.stage.height) {
+            this.direction = 180 - this.direction;
+        }
+        if (this.realX < 0 || this.realX + this.width > this.stage.width) {
+            this.direction *= -1;
+        }
+    }
+
     touchSprite(sprite) {
         if (sprite.hidden) {
             return false;
