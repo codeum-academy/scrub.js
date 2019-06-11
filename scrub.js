@@ -279,6 +279,20 @@ class Keyboard {
     }
 }
 
+class Mouse {
+    isDown = false;
+
+    constructor() {
+        document.addEventListener('mousedown', () => {
+            this.isDown = true;
+        });
+
+        document.addEventListener('mouseup', () => {
+            this.isDown = false;
+        });
+    }
+}
+
 class Registry {
     instance = null;
     data = {};
@@ -317,14 +331,13 @@ class Sprite {
     size = 100;
     hidden = false;
     costumeIndex = null;
-
     costume = null;
     stage;
     costumes = [];
     costumeNames = [];
     sounds = [];
     deleted = false;
-    
+
     constructor(costumePaths = [], soundPaths = []) {
         if (!Registry.getInstance().has('stage')) {
             throw new Error('You need create stage before sprite.');
@@ -423,7 +436,7 @@ class Sprite {
             return false;
         }
 
-        const touch = 
+        const touch =
             this.realX + this.width > sprite.realX && this.realX < sprite.realX + sprite.width &&
             this.realY + this.height > sprite.realY && this.realY < sprite.realY + sprite.height
         ;
@@ -432,8 +445,8 @@ class Sprite {
     }
 
     touchEdge() {
-        const touch = 
-            this.realX < 0 || this.realX + this.width > 480 || 
+        const touch =
+            this.realX < 0 || this.realX + this.width > 480 ||
             this.realY < 0 || this.realY + this.height > 360
         ;
 
@@ -443,7 +456,7 @@ class Sprite {
     // TODO Переделать клонирование
     cloneSprite() {
         const clone = new Sprite(this.stage);
-        
+
         clone.x = this.x;
         clone.y = this.y;
         clone.degrees = this.degrees;
@@ -489,7 +502,7 @@ class Sprite {
         if (this.costume) {
             return this.costume.width * this.size / 100;
         }
-        
+
         return null;
     }
 
@@ -519,9 +532,11 @@ class Stage {
     sprites = [];
     drawing;
     keyboard;
+    mouse;
 
     constructor(canvasId = null, width = 480, height = 360, background = null) {
         this.keyboard = new Keyboard();
+        this.mouse = new Mouse();
 
         if (canvasId) {
             this.canvas = document.getElementById(canvasId);
@@ -550,7 +565,7 @@ class Stage {
     deleteSprite(sprite) {
         this.sprites.splice(this.sprites.indexOf(sprite), 1);
     }
-   
+
     addBackground(backgroundPath) {
         const background = new Image();
         background.src = backgroundPath;
@@ -570,7 +585,7 @@ class Stage {
             this.background = background;
         }
     }
-    
+
     drawImage(image, x, y, w, h, degrees){
         if (degrees !== 0) {
             this.context.save();
@@ -594,6 +609,10 @@ class Stage {
         return this.keyboard.keyPressed(char);
     }
 
+    mouseDown() {
+        return this.mouse.isDown;
+    }
+
     getRandom(min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
@@ -613,7 +632,7 @@ class Stage {
             if (sprite.hidden || !sprite.costume) {
                 continue;
             }
-            
+
             this.drawImage(sprite.costume.image, sprite.x - sprite.width / 2, sprite.y - sprite.height / 2, sprite.width, sprite.height, sprite.degrees);
         }
     }
