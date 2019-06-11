@@ -364,6 +364,8 @@ class Sprite {
     y = 0;
     dir = 0;
     size = 100;
+    // 'normal', 'leftRight', 'none'
+    rotateStyle = 'normal';
     hidden = false;
     costumeIndex = null;
     costume = null;
@@ -697,17 +699,29 @@ class Stage {
         }
     }
 
-    drawImage(image, x, y, w, h, direction){
-        if (direction !== 0) {
+    drawImage(image, x, y, w, h, direction, rotateStyle){
+        if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
             this.context.translate(x+w/2, y+h/2);
-            this.context.rotate(direction*Math.PI/180.0);
+            this.context.rotate(direction * Math.PI/180.0);
             this.context.translate(-x-w/2, -y-h/2);
         }
 
-        this.context.drawImage(image, x, y, w, h);
+        if (rotateStyle === 'leftRight' && direction > 180) {
+            this.context.save();
+            this.context.translate(x + w / 2, 0);
+            this.context.scale(-1, 1);
 
-        if (direction !== 0) {
+            // mirror image
+
+            this.context.drawImage(image, -w / 2, y);
+
+        } else {
+            // usual image
+            this.context.drawImage(image, x, y, w, h);
+        }
+
+        if (rotateStyle === 'normal' && direction !== 0 || rotateStyle === 'leftRight' && direction > 180) {
             this.context.restore();
         }
     }
