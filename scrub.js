@@ -506,6 +506,10 @@ class Sprite {
         this.direction = (Math.atan2(this.y - sprite.y , this.x - sprite.x) / Math.PI * 180) - 90
     }
 
+    getDistanceTo(sprite) {
+        return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
+    }
+
     // TODO Переделать клонирование
     cloneSprite() {
         const clone = new Sprite(this.stage);
