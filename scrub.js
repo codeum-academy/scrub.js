@@ -300,6 +300,33 @@ class Mouse {
     }
 }
 
+class Styles {
+    canvas;
+
+    constructor(canvas, width, height) {
+        this.canvas = canvas;
+
+        this.setEnvironmentStyles();
+
+        this.setCanvasSize(width, height);
+        window.addEventListener('resize', () => {
+            this.setCanvasSize(width, height);
+        });
+    }
+
+    setEnvironmentStyles() {
+        document.body.style.margin = 0;
+        document.body.style.height = 100 + "vh";
+        document.body.style.padding = 0;
+        document.body.style.overflow = 'hidden';
+    }
+
+    setCanvasSize(width, height) {
+        this.canvas.width = width ? width : document.body.clientWidth;
+        this.canvas.height = height ? height : document.body.clientHeight;
+    }
+}
+
 class Registry {
     instance = null;
     data = {};
@@ -453,8 +480,8 @@ class Sprite {
 
     touchEdge() {
         const touch =
-            this.realX < 0 || this.realX + this.width > 480 ||
-            this.realY < 0 || this.realY + this.height > 360
+            this.realX < 0 || this.realX + this.width > this.stage.width ||
+            this.realY < 0 || this.realY + this.height > this.stage.height
         ;
 
         return touch;
@@ -551,8 +578,9 @@ class Stage {
     drawing;
     keyboard;
     mouse;
+    styles;
 
-    constructor(canvasId = null, width = 480, height = 360, background = null) {
+    constructor(canvasId = null, width = null, height = null, background = null) {
         this.keyboard = new Keyboard();
         this.mouse = new Mouse();
 
@@ -567,6 +595,8 @@ class Stage {
         this.canvas.width  = width;
         this.canvas.height = height;
 
+        this.styles = new Styles(this.canvas, width, height);
+
         this.context = this.canvas.getContext('2d');
 
         if (background) {
@@ -574,6 +604,14 @@ class Stage {
         }
 
         Registry.getInstance().set('stage', this);
+    }
+
+    get width() {
+        return this.canvas.width;
+    }
+
+    get height() {
+        return this.canvas.height;
     }
 
     addSprite(sprite) {
@@ -636,10 +674,10 @@ class Stage {
     }
 
     render() {
-        this.context.clearRect(0, 0, 480, 360);
+        this.context.clearRect(0, 0, this.width, this.height);
 
         if (this.background) {
-            this.context.drawImage(this.background, 0, 0, 480, 360);
+            this.context.drawImage(this.background, 0, 0, this.width, this.height);
         }
 
         if (this.drawing) {
