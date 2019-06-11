@@ -502,6 +502,10 @@ class Sprite {
         return touch;
     }
 
+    pointForward(sprite) {
+        this.direction = (Math.atan2(this.y - sprite.y , this.x - sprite.x) / Math.PI * 180) - 90
+    }
+
     // TODO Переделать клонирование
     cloneSprite() {
         const clone = new Sprite(this.stage);
