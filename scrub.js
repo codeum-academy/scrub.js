@@ -557,7 +557,7 @@ class Sprite {
 
     // TODO Переделать клонирование
     cloneSprite() {
-        const clone = new Sprite(this.stage);
+        const clone = new Sprite();
 
         clone.x = this.x;
         clone.y = this.y;
