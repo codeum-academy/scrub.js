@@ -373,6 +373,9 @@ class Sprite {
     sounds = [];
     deleted = false;
 
+    phrase;
+    phraseLiveTime = null;
+
     constructor(costumePaths = [], soundPaths = []) {
         if (!Registry.getInstance().has('stage')) {
             throw new Error('You need create stage before sprite.');
@@ -517,6 +520,35 @@ class Sprite {
 
     getDistanceTo(sprite) {
         return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
+    }
+
+    say(text, time = null) {
+        this.phrase = this.name + ': ' + text;
+
+        this.phraseLiveTime = null;
+        if (time) {
+            const currentTime = (new Date()).getTime();
+            this.phraseLiveTime = currentTime + time;
+        }
+    }
+
+    getPhrase() {
+        if (this.phrase) {
+            if (this.phraseLiveTime === null) {
+                return this.phrase;
+            }
+
+            const currentTime = (new Date()).getTime();
+            if (this.phraseLiveTime > currentTime) {
+                return this.phrase;
+
+            } else {
+                this.phrase = null;
+                this.phraseLiveTime = null;
+            }
+        }
+
+        return null;
     }
 
     // TODO Переделать клонирование
@@ -710,6 +742,13 @@ class Stage {
         for (const sprite of this.sprites) {
             if (sprite.hidden || !sprite.costume) {
                 continue;
+            }
+
+            let phrase = sprite.getPhrase();
+            if (phrase) {
+                this.context.font = '20px Arial';
+                this.context.fillStyle = 'black';
+                this.context.fillText(phrase, 40, this.canvas.height - 40);
             }
 
             this.drawImage(
