@@ -279,6 +279,54 @@ class Keyboard {
     }
 }
 
+class Mouse {
+    x = 0;
+    y = 0;
+    isDown = false;
+
+    constructor() {
+        document.addEventListener('mousedown', () => {
+            this.isDown = true;
+        });
+
+        document.addEventListener('mouseup', () => {
+            this.isDown = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            this.x = e.clientX;
+            this.y = e.clientY;
+        });
+    }
+}
+
+class Styles {
+    canvas;
+
+    constructor(canvas, width, height) {
+        this.canvas = canvas;
+
+        this.setEnvironmentStyles();
+
+        this.setCanvasSize(width, height);
+        window.addEventListener('resize', () => {
+            this.setCanvasSize(width, height);
+        });
+    }
+
+    setEnvironmentStyles() {
+        document.body.style.margin = 0;
+        document.body.style.height = 100 + "vh";
+        document.body.style.padding = 0;
+        document.body.style.overflow = 'hidden';
+    }
+
+    setCanvasSize(width, height) {
+        this.canvas.width = width ? width : document.body.clientWidth;
+        this.canvas.height = height ? height : document.body.clientHeight;
+    }
+}
+
 class Registry {
     instance = null;
     data = {};
@@ -311,20 +359,25 @@ class Costume {
 }
 
 class Sprite {
+    name = 'No name';
     x = 0;
     y = 0;
-    degrees = 0;
+    dir = 0;
     size = 100;
+    // 'normal', 'leftRight', 'none'
+    rotateStyle = 'normal';
     hidden = false;
     costumeIndex = null;
-
     costume = null;
     stage;
     costumes = [];
     costumeNames = [];
     sounds = [];
     deleted = false;
-    
+
+    phrase;
+    phraseLiveTime = null;
+
     constructor(costumePaths = [], soundPaths = []) {
         if (!Registry.getInstance().has('stage')) {
             throw new Error('You need create stage before sprite.');
@@ -332,6 +385,9 @@ class Sprite {
 
         this.stage = Registry.getInstance().get('stage');
         this.stage.addSprite(this);
+
+        this.x = this.stage.width / 2;
+        this.y = this.stage.height / 2;
 
         for (const costumePath of costumePaths) {
             this.addCostume(costumePath);
@@ -414,8 +470,17 @@ class Sprite {
     }
 
     move(steps) {
-        this.x += (steps * Math.sin(this.degrees * Math.PI / 180));
-        this.y -= (steps * Math.cos(this.degrees * Math.PI / 180));
+        this.x += (steps * Math.sin(this.direction * Math.PI / 180));
+        this.y -= (steps * Math.cos(this.direction * Math.PI / 180));
+    }
+
+    bounceOnEdge() {
+        if(this.realY < 0 + this.stage.padding || this.realY + this.height > this.stage.height - this.stage.padding) {
+            this.direction = 180 - this.direction;
+        }
+        if (this.realX < 0 + this.stage.padding || this.realX + this.width > this.stage.width - this.stage.padding) {
+            this.direction *= -1;
+        }
     }
 
     touchSprite(sprite) {
@@ -423,7 +488,7 @@ class Sprite {
             return false;
         }
 
-        const touch = 
+        const touch =
             this.realX + this.width > sprite.realX && this.realX < sprite.realX + sprite.width &&
             this.realY + this.height > sprite.realY && this.realY < sprite.realY + sprite.height
         ;
@@ -432,21 +497,71 @@ class Sprite {
     }
 
     touchEdge() {
-        const touch = 
-            this.realX < 0 || this.realX + this.width > 480 || 
-            this.realY < 0 || this.realY + this.height > 360
+        const touch =
+            this.realX < 0 + this.stage.padding ||
+            this.realX + this.width > this.stage.width - this.stage.padding - this.stage.padding ||
+            this.realY < 0 + this.stage.padding ||
+            this.realY + this.height > this.stage.height - this.stage.padding - this.stage.padding
         ;
 
         return touch;
     }
 
+    touchMouse() {
+        const touch =
+            this.stage.mouse.x > this.realX &&
+            this.stage.mouse.x < this.realX + this.width &&
+            this.stage.mouse.y > this.realY &&
+            this.stage.mouse.y < this.realY + this.height
+        ;
+
+        return touch;
+    }
+
+    pointForward(sprite) {
+        this.direction = (Math.atan2(this.y - sprite.y , this.x - sprite.x) / Math.PI * 180) - 90
+    }
+
+    getDistanceTo(sprite) {
+        return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
+    }
+
+    say(text, time = null) {
+        this.phrase = this.name + ': ' + text;
+
+        this.phraseLiveTime = null;
+        if (time) {
+            const currentTime = (new Date()).getTime();
+            this.phraseLiveTime = currentTime + time;
+        }
+    }
+
+    getPhrase() {
+        if (this.phrase) {
+            if (this.phraseLiveTime === null) {
+                return this.phrase;
+            }
+
+            const currentTime = (new Date()).getTime();
+            if (this.phraseLiveTime > currentTime) {
+                return this.phrase;
+
+            } else {
+                this.phrase = null;
+                this.phraseLiveTime = null;
+            }
+        }
+
+        return null;
+    }
+
     // TODO Переделать клонирование
     cloneSprite() {
-        const clone = new Sprite(this.stage);
-        
+        const clone = new Sprite();
+
         clone.x = this.x;
         clone.y = this.y;
-        clone.degrees = this.degrees;
+        clone.direction = this.direction;
         clone.size = this.size;
         clone.hidden = this.hidden;
         clone.costume = this.costume;
@@ -476,20 +591,22 @@ class Sprite {
         this.deleted = true;
     }
 
-    set degrees(degrees) {
-        if (degrees > 360) {
-            this.degrees = degrees - 360;
+    set direction (d) {
+        if ((d * 0) !== 0) return; // d is +/-Infinity or NaN
+        d = d % 360;
+        if (d < 0) d += 360;
+        this.dir = (d > 360) ? d - 360 : d;
+    }
 
-        } else {
-            this.degrees = degrees
-        }
+    get direction() {
+        return this.dir;
     }
 
     get width() {
         if (this.costume) {
             return this.costume.width * this.size / 100;
         }
-        
+
         return null;
     }
 
@@ -513,15 +630,22 @@ class Sprite {
 class Stage {
     canvas;
     context;
+    backgroundColor;
     background = null;
     backgroundIndex = null;
     backgrounds = [];
     sprites = [];
     drawing;
     keyboard;
+    mouse;
+    styles;
+    padding = 0;
+    // none, hover, forever;
+    debugMode = "none";
 
-    constructor(canvasId = null, width = 480, height = 360, background = null) {
+    constructor(canvasId = null, width = null, height = null, background = null) {
         this.keyboard = new Keyboard();
+        this.mouse = new Mouse();
 
         if (canvasId) {
             this.canvas = document.getElementById(canvasId);
@@ -534,6 +658,8 @@ class Stage {
         this.canvas.width  = width;
         this.canvas.height = height;
 
+        this.styles = new Styles(this.canvas, width, height);
+
         this.context = this.canvas.getContext('2d');
 
         if (background) {
@@ -543,6 +669,14 @@ class Stage {
         Registry.getInstance().set('stage', this);
     }
 
+    get width() {
+        return this.canvas.width;
+    }
+
+    get height() {
+        return this.canvas.height;
+    }
+
     addSprite(sprite) {
         this.sprites.push(sprite);
     }
@@ -550,7 +684,7 @@ class Stage {
     deleteSprite(sprite) {
         this.sprites.splice(this.sprites.indexOf(sprite), 1);
     }
-   
+
     addBackground(backgroundPath) {
         const background = new Image();
         background.src = backgroundPath;
@@ -570,18 +704,29 @@ class Stage {
             this.background = background;
         }
     }
-    
-    drawImage(image, x, y, w, h, degrees){
-        if (degrees !== 0) {
+
+    drawImage(image, x, y, w, h, direction, rotateStyle){
+        if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
             this.context.translate(x+w/2, y+h/2);
-            this.context.rotate(degrees*Math.PI/180.0);
+            this.context.rotate(direction * Math.PI / 180);
             this.context.translate(-x-w/2, -y-h/2);
         }
 
-        this.context.drawImage(image, x, y, w, h);
+        if (rotateStyle === 'leftRight' && direction > 180) {
+            this.context.save();
+            this.context.translate(x + w / 2, 0);
+            this.context.scale(-1, 1);
 
-        if (degrees !== 0) {
+            // mirror image
+            this.context.drawImage(image, -w / 2, y, w, h);
+
+        } else {
+            // usual image
+            this.context.drawImage(image, x, y, w, h);
+        }
+
+        if (rotateStyle === 'normal' && direction !== 0 || rotateStyle === 'leftRight' && direction > 180) {
             this.context.restore();
         }
     }
@@ -594,15 +739,24 @@ class Stage {
         return this.keyboard.keyPressed(char);
     }
 
+    mouseDown() {
+        return this.mouse.isDown;
+    }
+
     getRandom(min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
     render() {
-        this.context.clearRect(0, 0, 480, 360);
+        this.context.clearRect(0, 0, this.width, this.height);
+
+        if (this.backgroundColor) {
+            this.context.fillStyle = this.backgroundColor;
+            this.context.fillRect(0, 0, this.width, this.height);
+        }
 
         if (this.background) {
-            this.context.drawImage(this.background, 0, 0, 480, 360);
+            this.context.drawImage(this.background, 0, 0, this.width, this.height);
         }
 
         if (this.drawing) {
@@ -613,8 +767,55 @@ class Stage {
             if (sprite.hidden || !sprite.costume) {
                 continue;
             }
-            
-            this.drawImage(sprite.costume.image, sprite.x - sprite.width / 2, sprite.y - sprite.height / 2, sprite.width, sprite.height, sprite.degrees);
+
+            if (this.debugMode !== 'none') {
+                const fn = () => {
+                    const x = sprite.x - (this.context.measureText(sprite.name).width / 2);
+                    let y = sprite.realY + sprite.height + 20;
+
+                    this.context.font = '16px Arial';
+                    this.context.fillStyle = 'black';
+                    this.context.fillText(sprite.name, x, y);
+                    y += 20;
+
+                    this.context.font = '14px Arial';
+                    this.context.fillText("x: " + sprite.x, x, y);
+                    y += 20;
+                    this.context.fillText("y: " + sprite.y, x, y);
+                    y += 20;
+                    this.context.fillText("direction: " + sprite.direction, x, y);
+                    y += 20;
+                    this.context.fillText("costume: " + sprite.costumeNames[sprite.costumeIndex], x, y);
+                };
+
+                if (this.debugMode === 'hover') {
+                    if (sprite.touchMouse()) {
+                        fn();
+                    }
+                }
+
+                if (this.debugMode === 'forever') {
+                    fn();
+                }
+            }
+
+
+            let phrase = sprite.getPhrase();
+            if (phrase) {
+                this.context.font = '20px Arial';
+                this.context.fillStyle = 'black';
+                this.context.fillText(phrase, 40, this.canvas.height - 40);
+            }
+
+            this.drawImage(
+                sprite.costume.image,
+                sprite.x - sprite.width / 2,
+                sprite.y - sprite.height / 2,
+                sprite.width,
+                sprite.height,
+                sprite.direction,
+                sprite.rotateStyle
+            );
         }
     }
 
