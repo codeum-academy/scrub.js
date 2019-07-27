@@ -130,25 +130,54 @@ class Stage {
         sprite.position = newPosition;
     }
 
-    drawImage(image, x: number, y: number, w: number, h: number, direction: number, rotateStyle: string): void {
+    drawSprite(sprite: Sprite): void {
+        const costume = sprite.getCostume();
+        const image = costume.image;
+        const dstX = sprite.x - sprite.width / 2;
+        const dstY = sprite.y - sprite.height / 2;
+        const dstWidth = sprite.width;
+        const dstHeight = sprite.height;
+        const direction = sprite.direction;
+        const rotateStyle = sprite.rotateStyle;
+
         if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
-            this.context.translate(x+w/2, y+h/2);
+            this.context.translate(dstX + dstWidth / 2, dstY + dstHeight / 2);
             this.context.rotate(direction * Math.PI / 180);
-            this.context.translate(-x-w/2, -y-h/2);
+            this.context.translate(-dstX - dstWidth / 2, -dstY - dstHeight / 2);
         }
 
         if (rotateStyle === 'leftRight' && direction > 180) {
             this.context.save();
-            this.context.translate(x + w / 2, 0);
+            this.context.translate(dstX + dstWidth / 2, 0);
             this.context.scale(-1, 1);
 
             // mirror image
-            this.context.drawImage(image, -w / 2, y, w, h);
+            this.context.drawImage(
+                image,
+                costume.x,
+                costume.y,
+                costume.width,
+                costume.height,
+                -dstWidth / 2,
+                dstY,
+                dstWidth,
+                dstHeight
+            );
 
         } else {
             // usual image
-            this.context.drawImage(image, x, y, w, h);
+            this.context.drawImage(
+                image,
+                costume.x,
+                costume.y,
+                costume.width,
+                costume.height,
+                dstX,
+                dstY,
+                dstWidth,
+                dstHeight
+            );
         }
 
         if (rotateStyle === 'normal' && direction !== 0 || rotateStyle === 'leftRight' && direction > 180) {
@@ -241,15 +270,9 @@ class Stage {
                 this.context.fillText(phrase, 40, this.canvas.height - 40);
             }
 
-            this.drawImage(
-                sprite.costume.image,
-                sprite.x - sprite.width / 2,
-                sprite.y - sprite.height / 2,
-                sprite.width,
-                sprite.height,
-                sprite.direction,
-                sprite.rotateStyle
-            );
+            if (sprite.costume) {
+                this.drawSprite(sprite);
+            }
         }
     }
 

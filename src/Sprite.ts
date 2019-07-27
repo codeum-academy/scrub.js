@@ -41,30 +41,77 @@ class Sprite {
         }
     }
 
-    addCostume(costumePath, name = null): void {
-        const costume = new Costume();
-
+    addCostume(
+        costumePath: string,
+        name: string = null,
+        x: number = 0,
+        y: number = 0,
+        width: number = null,
+        height: number = null,
+        paddingTop: number = 0,
+        paddingRight: number = 0,
+        paddingBottom: number = 0,
+        paddingLeft: number = 0
+    ): void {
         const image = new Image();
         image.src = costumePath;
+
+        image.addEventListener('load', () => {
+            this.addCostumeByImage(
+                image,
+                name,
+                x,
+                y,
+                width,
+                height,
+                paddingTop,
+                paddingRight,
+                paddingBottom,
+                paddingLeft
+            );
+        }, false);
+    }
+
+    addCostumeByImage(
+        image: HTMLImageElement,
+        name: string = null,
+        x: number = 0,
+        y: number = 0,
+        width: number = null,
+        height: number = null,
+        paddingTop: number = 0,
+        paddingRight: number = 0,
+        paddingBottom: number = 0,
+        paddingLeft: number = 0
+    ): void {
+        if (width === null) {
+            width = image.naturalWidth;
+        }
+
+        if (height === null) {
+            height = image.naturalHeight;
+        }
+
+        const costume = new Costume();
 
         costume.image = image;
         this.costumes.push(costume);
 
-        image.addEventListener('load', () => {
-            costume.width = image.naturalWidth;
-            costume.height = image.naturalHeight;
+        costume.x = x;
+        costume.y = y;
+        costume.width = width;
+        costume.height = height;
 
-            costume.body = new Polygon(this.x, this.y, [
-                [(costume.width / 2) * -1, (costume.height / 2) * -1],
-                [costume.width / 2, (costume.height / 2) * -1],
-                [costume.width / 2, costume.height / 2],
-                [(costume.width / 2) * -1, costume.height / 2]
-            ]);
+        costume.body = new Polygon(this.x, this.y, [
+            [(costume.width / 2) * -1 + paddingLeft * -1, (costume.height / 2) * -1 + paddingTop * -1],
+            [costume.width / 2 + paddingRight, (costume.height / 2) * -1 + paddingTop * -1],
+            [costume.width / 2 + paddingRight, costume.height / 2  + paddingBottom],
+            [(costume.width / 2) * -1 + paddingLeft * -1, costume.height / 2  + paddingBottom]
+        ]);
 
-            if (this.costume === null) {
-                this.switchCostume(0);
-            }
-        }, false);
+        if (this.costume === null) {
+            this.switchCostume(0);
+        }
 
         if (!name) {
             const costumeIndex = this.costumes.length - 1;
@@ -72,6 +119,83 @@ class Sprite {
         }
 
         this.costumeNames.push(name);
+    }
+
+    addCostumes(
+        costumePath: string,
+        name: string = null,
+        cols: number,
+        rows: number = 1,
+        limit: number = null,
+        offset: number = null,
+        paddingTop: number = 0,
+        paddingRight: number = 0,
+        paddingBottom: number = 0,
+        paddingLeft: number = 0
+    ) {
+        const image = new Image();
+        image.src = costumePath;
+
+        image.addEventListener('load', () => {
+            image.naturalWidth;
+            image.naturalHeight;
+
+            const chunkWidth = image.naturalWidth / cols;
+            const chunkHeight = image.naturalHeight / rows;
+            let skip = false;
+
+            let costumeIndex = 0;
+            let x = 0;
+            let y = 0;
+            for (let i = 0; i < rows; i++) {
+                for (let t = 0; t < cols; t++) {
+                    skip = false;
+                    if (offset !== null ) {
+                        if (offset > 0) {
+                            offset--;
+                            skip = true;
+                        }
+                    }
+
+                    if (!skip) {
+                        if (limit !== null) {
+                            if (limit == 0) {
+                                break;
+                            }
+
+                            if (limit > 0) {
+                                limit--;
+                            }
+                        }
+
+                        let costumeName = name;
+                        if (costumeName !== null) {
+                            costumeName += ' ' + costumeIndex;
+                        }
+
+                        this.addCostumeByImage(
+                            image,
+                            costumeName,
+                            x,
+                            y,
+                            chunkWidth,
+                            chunkHeight,
+                            paddingTop,
+                            paddingRight,
+                            paddingBottom,
+                            paddingLeft
+                        );
+                        costumeIndex++;
+                    }
+
+                    x += chunkWidth;
+                }
+
+                x = 0;
+                y += chunkHeight;
+            }
+
+        }, false);
     }
 
     switchCostume(costumeIndex): void {
@@ -399,6 +523,10 @@ class Sprite {
 
     getBody(): Polygon {
         return this.body;
+    }
+
+    getCostume(): Costume {
+        return this.costume;
     }
 
     set direction (direction: number) {
