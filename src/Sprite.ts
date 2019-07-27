@@ -309,7 +309,7 @@ class Sprite {
 
     timeout(callback, timeout: number): void {
         setTimeout(() => {
-            if (this.deleted) {
+            if (this.deleted || this.stopped) {
                 return;
             }
 
@@ -342,9 +342,18 @@ class Sprite {
         this.interval(callback, timeout);
     }
 
-    // TODO need modify
     delete(): void {
+        if (this.deleted) {
+            return;
+        }
+
         this.stage.deleteSprite(this);
+
+        let props = Object.keys(this);
+        for (let i = 0; i < props.length; i++) {
+            delete this[props[i]];
+        }
+
         this.deleted = true;
     }
 
