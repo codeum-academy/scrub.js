@@ -77,8 +77,10 @@ class Stage {
         return this._stopped;
     }
 
-    addSprite(sprite: Sprite): void {
+    addSprite(sprite: Sprite): number {
         this.sprites.push(sprite);
+
+        return this.sprites.length - 1;
     }
 
     deleteSprite(sprite: Sprite): void {
@@ -103,6 +105,29 @@ class Stage {
         if (background) {
             this.background = background;
         }
+    }
+
+    changeSpritePosition(sprite: Sprite, newPosition: number): void {
+        let oldPosition = sprite.position;
+
+        while (oldPosition < 0) {
+            oldPosition += this.sprites.length;
+        }
+
+        while (newPosition < 0) {
+            newPosition += this.sprites.length;
+        }
+
+        if (newPosition >= this.sprites.length) {
+            let k = newPosition - this.sprites.length + 1;
+
+            while (k--) {
+                this.sprites.push(undefined);
+            }
+        }
+
+        this.sprites.splice(newPosition, 0, this.sprites.splice(oldPosition, 1)[0]);
+        sprite.position = newPosition;
     }
 
     drawImage(image, x: number, y: number, w: number, h: number, direction: number, rotateStyle: string): void {

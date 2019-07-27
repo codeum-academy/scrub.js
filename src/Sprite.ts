@@ -15,6 +15,7 @@ class Sprite {
     private stopped = false;
     private phrase;
     private phraseLiveTime = null;
+    public position; // remake to getter and setter
     private _x = 0;
     private _y = 0;
     private _direction = 0;
@@ -25,7 +26,7 @@ class Sprite {
         }
 
         this.stage = Registry.getInstance().get('stage');
-        this.stage.addSprite(this);
+        this.position = this.stage.addSprite(this);
 
         this._x = this.stage.width / 2;
         this._y = this.stage.height / 2;
@@ -121,6 +122,10 @@ class Sprite {
         }
 
         this.switchCostume(nextCostume);
+    }
+
+    changePosition(newPosition: number): void {
+        this.stage.changeSpritePosition(this, newPosition);
     }
 
     addSound(soundPath): void {

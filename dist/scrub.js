@@ -39,7 +39,7 @@ var Sprite = (function () {
             throw new Error('You need create stage before sprite.');
         }
         this.stage = Registry.getInstance().get('stage');
-        this.stage.addSprite(this);
+        this.position = this.stage.addSprite(this);
         this._x = this.stage.width / 2;
         this._y = this.stage.height / 2;
         for (var _i = 0, costumePaths_1 = costumePaths; _i < costumePaths_1.length; _i++) {
@@ -116,6 +116,9 @@ var Sprite = (function () {
             nextCostume = 0;
         }
         this.switchCostume(nextCostume);
+    };
+    Sprite.prototype.changePosition = function (newPosition) {
+        this.stage.changeSpritePosition(this, newPosition);
     };
     Sprite.prototype.addSound = function (soundPath) {
         var sound = new Audio();
@@ -462,6 +465,7 @@ var Stage = (function () {
     });
     Stage.prototype.addSprite = function (sprite) {
         this.sprites.push(sprite);
+        return this.sprites.length - 1;
     };
     Stage.prototype.deleteSprite = function (sprite) {
         this.sprites.splice(this.sprites.indexOf(sprite), 1);
@@ -480,6 +484,23 @@ var Stage = (function () {
         if (background) {
             this.background = background;
         }
+    };
+    Stage.prototype.changeSpritePosition = function (sprite, newPosition) {
+        var oldPosition = sprite.position;
+        while (oldPosition < 0) {
+            oldPosition += this.sprites.length;
+        }
+        while (newPosition < 0) {
+            newPosition += this.sprites.length;
+        }
+        if (newPosition >= this.sprites.length) {
+            var k = newPosition - this.sprites.length + 1;
+            while (k--) {
+                this.sprites.push(undefined);
+            }
+        }
+        this.sprites.splice(newPosition, 0, this.sprites.splice(oldPosition, 1)[0]);
+        sprite.position = newPosition;
     };
     Stage.prototype.drawImage = function (image, x, y, w, h, direction, rotateStyle) {
         if (rotateStyle === 'normal' && direction !== 0) {
