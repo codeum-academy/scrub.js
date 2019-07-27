@@ -162,7 +162,7 @@ class Sprite {
         }
     }
 
-    touchSprite(sprite, result: CollisionResult = null): boolean {
+    touchSprite(sprite: Sprite, result: CollisionResult = null): boolean {
         if (
             sprite.hidden ||
             this.hidden ||
@@ -173,6 +173,42 @@ class Sprite {
         }
 
         return this.body.collides(sprite.getBody(), result);
+    }
+
+    touchSprites(sprites: Sprite[], result: CollisionResult = null): boolean {
+        for (const sprite of sprites) {
+            if (this.touchSprite(sprite, result)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    touchPotentialSprites(sprites: Sprite[], result: CollisionResult = null): boolean {
+        if (!(this.body instanceof Polygon)) {
+            return false;
+        }
+
+        const potentials = this.body.potentials();
+        if (!potentials.length) {
+            return false;
+        }
+
+        const potentialSprites = [];
+        for (const sprite of sprites) {
+            if (potentials.indexOf(sprite.getBody()) > -1) {
+                potentialSprites.push(sprite);
+            }
+        }
+
+        for (const potentialSprite of potentialSprites) {
+            if (this.touchSprite(potentialSprite, result)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     touchEdge(result: CollisionResult = null): boolean {

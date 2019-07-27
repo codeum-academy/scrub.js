@@ -158,6 +158,40 @@ var Sprite = (function () {
         }
         return this.body.collides(sprite.getBody(), result);
     };
+    Sprite.prototype.touchSprites = function (sprites, result) {
+        if (result === void 0) { result = null; }
+        for (var _i = 0, sprites_1 = sprites; _i < sprites_1.length; _i++) {
+            var sprite = sprites_1[_i];
+            if (this.touchSprite(sprite, result)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    Sprite.prototype.touchPotentialSprites = function (sprites, result) {
+        if (result === void 0) { result = null; }
+        if (!(this.body instanceof Polygon)) {
+            return false;
+        }
+        var potentials = this.body.potentials();
+        if (!potentials.length) {
+            return false;
+        }
+        var potentialSprites = [];
+        for (var _i = 0, sprites_2 = sprites; _i < sprites_2.length; _i++) {
+            var sprite = sprites_2[_i];
+            if (potentials.indexOf(sprite.getBody()) > -1) {
+                potentialSprites.push(sprite);
+            }
+        }
+        for (var _a = 0, potentialSprites_1 = potentialSprites; _a < potentialSprites_1.length; _a++) {
+            var potentialSprite = potentialSprites_1[_a];
+            if (this.touchSprite(potentialSprite, result)) {
+                return true;
+            }
+        }
+        return false;
+    };
     Sprite.prototype.touchEdge = function (result) {
         if (result === void 0) { result = null; }
         if (!(this.body instanceof Body)) {
