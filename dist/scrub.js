@@ -628,7 +628,7 @@ var Stage = (function () {
             this.context.stroke();
         }
         var _loop_1 = function (sprite) {
-            if (sprite.hidden || !sprite.costume) {
+            if (sprite.hidden) {
                 return "continue";
             }
             if (this_1.debugMode !== 'none') {

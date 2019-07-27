@@ -199,7 +199,7 @@ class Stage {
         }
 
         for (const sprite of this.sprites) {
-            if (sprite.hidden || !sprite.costume) {
+            if (sprite.hidden) {
                 continue;
             }
 
