@@ -1,3 +1,5 @@
+/// <reference path="Body.ts"/>
+
 /**
  * A polygon used to detect collisions
  * @class

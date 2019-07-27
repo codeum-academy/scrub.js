@@ -10,8 +10,6 @@ class Stage {
     private backgroundIndex = null;
     private backgrounds = [];
     private sprites = [];
-    private keyboard;
-    private mouse;
     private styles;
     private drawing;
     private topEdge: Polygon;
@@ -21,14 +19,11 @@ class Stage {
     private _padding: number;
 
     constructor(canvasId: string = null, width: number = null, height: number = null, background: string = null, padding = 0) {
-        this.keyboard = new Keyboard();
-        this.mouse = new Mouse();
         this.collisionSystem = new CollisionSystem();
 
         if (canvasId) {
             const element = document.getElementById(canvasId);
-            console.log(element);
-            
+
             if (element instanceof HTMLCanvasElement) {
                 this.canvas = element;
             }
@@ -130,16 +125,19 @@ class Stage {
         this.drawing = callback;
     }
 
+    // @deprecated
     keyPressed(char: string): boolean {
-        return this.keyboard.keyPressed(char);
+        return keyPressed(char);
     }
 
+    // @deprecated
     mouseDown(): boolean {
-        return this.mouse.isDown;
+        return mouseDown();
     }
 
+    // @deprecated
     getRandom(min: number, max: number): number {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
+        return random(min, max);
     }
 
     render(): void {
@@ -220,23 +218,39 @@ class Stage {
         }
     }
 
-    forever(callback, timeout = null): void {
+    timeout(callback, timeout: number): void {
+        setTimeout(() => {
+            requestAnimationFrame(() => callback(this));
+        }, timeout);
+    }
+
+    interval(callback, timeout = null): void {
         const result = callback(this);
+        if (result === false) {
+            return;
+        }
 
-        if (result !== false) {
-            if (timeout) {
-                setTimeout(() => {
-                    requestAnimationFrame(() => this.forever(callback, timeout));
-                }, timeout);
+        if (result > 0) {
+            timeout = result;
+        }
 
-            } else {
-                requestAnimationFrame(() => this.forever(callback));
-            }
+        if (timeout) {
+            setTimeout(() => {
+                requestAnimationFrame(() => this.interval(callback, timeout));
+            }, timeout);
+
+        } else {
+            requestAnimationFrame(() => this.interval(callback));
         }
     }
 
+    // @deprecated
+    forever(callback, timeout = null): void {
+        this.interval(callback, timeout);
+    }
+
     run(): void {
-        this.forever(() => {
+        this.interval(() => {
             this.render();
         });
     }
@@ -255,9 +269,5 @@ class Stage {
 
     getLeftEdge(): Polygon {
         return this.leftEdge;
-    }
-
-    getMouse(): Polygon {
-        return this.mouse;
     }
 }

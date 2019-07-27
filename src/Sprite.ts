@@ -223,7 +223,7 @@ class Sprite {
             return false;
         }
 
-        return this.body.collides(this.stage.getMouse().getPoint(), result);
+        return this.body.collides(getMousePoint(), result);
     }
 
     pointForward(sprite): void {
@@ -272,8 +272,7 @@ class Sprite {
         return null;
     }
 
-    // TODO need modify
-    cloneSprite(): Sprite {
+    createClone(): Sprite {
         const clone = new Sprite();
 
         clone.x = this.x;
@@ -289,19 +288,44 @@ class Sprite {
         return clone;
     }
 
-    forever(callback, timeout = null): void {
-        const result = callback(this);
+    // @deprecated
+    cloneSprite(): Sprite {
+        return this.createClone();
+    }
 
-        if (result !== false && !this.deleted) {
-            if (timeout) {
-                setTimeout(() => {
-                    requestAnimationFrame(() => this.forever(callback, timeout));
-                }, timeout);
-
-            } else {
-                requestAnimationFrame(() => this.forever(callback));
+    timeout(callback, timeout: number): void {
+        setTimeout(() => {
+            if (this.deleted) {
+                return;
             }
+
+            requestAnimationFrame(() => callback(this));
+        }, timeout);
+    }
+
+    interval(callback, timeout = null): void {
+        if (this.deleted) {
+            return;
         }
+
+        const result = callback(this);
+        if (result === false) {
+            return;
+        }
+
+        if (timeout) {
+            setTimeout(() => {
+                requestAnimationFrame(() => this.interval(callback, timeout));
+            }, timeout);
+
+        } else {
+            requestAnimationFrame(() => this.interval(callback));
+        }
+    }
+
+    // @deprecated
+    forever(callback, timeout = null): void {
+        this.interval(callback, timeout);
     }
 
     // TODO need modify
