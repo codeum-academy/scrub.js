@@ -365,7 +365,12 @@ var Sprite = (function () {
             }
             this._direction = (direction > 360) ? direction - 360 : direction;
             if (this.body instanceof Polygon) {
-                this.body.angle = this._direction * 3.14 / 180;
+                if (this.rotateStyle == 'leftRight') {
+                    this.body.angle = 0;
+                }
+                else {
+                    this.body.angle = this._direction * 3.14 / 180;
+                }
             }
         },
         enumerable: true,
