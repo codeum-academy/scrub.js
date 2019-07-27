@@ -12,6 +12,7 @@ class Sprite {
     private costumeNames = [];
     private sounds = [];
     private deleted = false;
+    private stopped = false;
     private phrase;
     private phraseLiveTime = null;
     private _x = 0;
@@ -285,6 +286,8 @@ class Sprite {
         clone.costumes = this.costumes;
         clone.body = this.body;
 
+        clone.stopped = this.stopped;
+
         return clone;
     }
 
@@ -304,7 +307,7 @@ class Sprite {
     }
 
     interval(callback, timeout = null): void {
-        if (this.deleted) {
+        if (this.deleted || this.stopped) {
             return;
         }
 
@@ -332,6 +335,10 @@ class Sprite {
     delete(): void {
         this.stage.deleteSprite(this);
         this.deleted = true;
+    }
+
+    stop(): void {
+        this.stopped = true;
     }
 
     getBody(): Polygon {

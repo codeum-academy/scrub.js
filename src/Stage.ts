@@ -16,7 +16,9 @@ class Stage {
     private rightEdge: Polygon;
     private bottomEdge: Polygon;
     private leftEdge: Polygon;
+    private _stopped = false;
     private _padding: number;
+    private _running = false;
 
     constructor(canvasId: string = null, width: number = null, height: number = null, background: string = null, padding = 0) {
         this.collisionSystem = new CollisionSystem();
@@ -65,6 +67,14 @@ class Stage {
 
     get height(): number {
         return this.canvas.height;
+    }
+
+    get running(): boolean {
+        return this._running;
+    }
+
+    get stopped(): boolean {
+        return this._stopped;
     }
 
     addSprite(sprite: Sprite): void {
@@ -220,11 +230,19 @@ class Stage {
 
     timeout(callback, timeout: number): void {
         setTimeout(() => {
+            if (this._stopped) {
+                return;
+            }
+
             requestAnimationFrame(() => callback(this));
         }, timeout);
     }
 
     interval(callback, timeout = null): void {
+        if (this._stopped) {
+            return;
+        }
+
         const result = callback(this);
         if (result === false) {
             return;
@@ -250,9 +268,20 @@ class Stage {
     }
 
     run(): void {
+        this._running = true;
+
         this.interval(() => {
             this.render();
         });
+    }
+
+    stop(): void {
+        this._running = false;
+        this._stopped = true;
+
+        for (const sprite of this.sprites) {
+            sprite.stop();
+        }
     }
 
     getTopEdge(): Polygon {
