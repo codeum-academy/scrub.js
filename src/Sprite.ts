@@ -2,7 +2,7 @@ class Sprite {
     name = 'No name';
     size = 100;
     rotateStyle = 'normal'; // 'normal', 'leftRight', 'none'
-    hidden = false;
+    singleBody = true;
 
     private body: Polygon;
     private costumeIndex = null;
@@ -19,6 +19,7 @@ class Sprite {
     private _x = 0;
     private _y = 0;
     private _direction = 0;
+    private _hidden = false;
 
     constructor(costumePaths = [], soundPaths = []) {
         if (!Registry.getInstance().has('stage')) {
@@ -80,26 +81,29 @@ class Sprite {
         if (costume instanceof Costume) {
             this.costume = costume;
 
-            if (this.body instanceof Polygon) {
-                this.stage.collisionSystem.remove(this.body);
+            if (this.singleBody) {
+                if (!(this.body instanceof Polygon)) {
+                    this.createBody(costume);
+                }
+
+                costume.image.addEventListener('load', () => {
+                    this.createBody(costume);
+                }, false);
+
+            } else {
+                if (this.body instanceof Polygon) {
+                    this.removeBody();
+                }
+
+                if (costume.body instanceof Polygon) {
+                    this.createBody(costume);
+                }
+
+                // Fix bug when costume.body is undefined
+                costume.image.addEventListener('load', () => {
+                    this.createBody(costume);
+                }, false);
             }
-
-            if (costume.body instanceof Polygon) {
-                this.body = costume.body;
-                this.body.scale_x = this.size / 100;
-                this.body.scale_y = this.size / 100;
-
-                this.stage.collisionSystem.insert(this.body);
-            }
-
-            // Fix bug with costume.body is undefined
-            costume.image.addEventListener('load', () => {
-                this.body = costume.body;
-                this.body.scale_x = this.size / 100;
-                this.body.scale_y = this.size / 100;
-
-                this.stage.collisionSystem.insert(this.body);
-            }, false);
         }
     }
 
@@ -418,5 +422,38 @@ class Sprite {
 
     get realY(): number {
         return this.y - this.height / 2;
+    }
+
+    set hidden(value: boolean) {
+        this._hidden = value;
+
+        // TODO need test
+        // if (value) {
+        //     this.removeBody();
+        //
+        // } else {
+        //     if (this.costume instanceof Costume) {
+        //         this.createBody(this.costume);
+        //     }
+        // }
+    }
+
+    get hidden() {
+        return this._hidden;
+    }
+
+    private removeBody() {
+        if (this.body instanceof Polygon) {
+            this.stage.collisionSystem.remove(this.body);
+            this.body = null;
+        }
+    }
+
+    private createBody(costume: Costume) {
+        this.body = costume.body;
+        this.body.scale_x = this.size / 100;
+        this.body.scale_y = this.size / 100;
+
+        this.stage.collisionSystem.insert(this.body);
     }
 }
