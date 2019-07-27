@@ -1,10 +1,7 @@
 var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -15,650 +12,6 @@ var Costume = (function () {
     function Costume() {
     }
     return Costume;
-}());
-var Sprite = (function () {
-    function Sprite(costumePaths, soundPaths) {
-        if (costumePaths === void 0) { costumePaths = []; }
-        if (soundPaths === void 0) { soundPaths = []; }
-        this.name = 'No name';
-        this.size = 100;
-        this.rotateStyle = 'normal';
-        this.hidden = false;
-        this.costumeIndex = null;
-        this.costume = null;
-        this.costumes = [];
-        this.costumeNames = [];
-        this.sounds = [];
-        this.deleted = false;
-        this.stopped = false;
-        this.phraseLiveTime = null;
-        this._x = 0;
-        this._y = 0;
-        this._direction = 0;
-        if (!Registry.getInstance().has('stage')) {
-            throw new Error('You need create stage before sprite.');
-        }
-        this.stage = Registry.getInstance().get('stage');
-        this.position = this.stage.addSprite(this);
-        this._x = this.stage.width / 2;
-        this._y = this.stage.height / 2;
-        for (var _i = 0, costumePaths_1 = costumePaths; _i < costumePaths_1.length; _i++) {
-            var costumePath = costumePaths_1[_i];
-            this.addCostume(costumePath);
-        }
-        for (var _a = 0, soundPaths_1 = soundPaths; _a < soundPaths_1.length; _a++) {
-            var soundPath = soundPaths_1[_a];
-            this.addSound(soundPath);
-        }
-    }
-    Sprite.prototype.addCostume = function (costumePath, name) {
-        var _this = this;
-        if (name === void 0) { name = null; }
-        var costume = new Costume();
-        var image = new Image();
-        image.src = costumePath;
-        costume.image = image;
-        this.costumes.push(costume);
-        image.addEventListener('load', function () {
-            costume.width = image.naturalWidth;
-            costume.height = image.naturalHeight;
-            costume.body = new Polygon(_this.x, _this.y, [
-                [(costume.width / 2) * -1, (costume.height / 2) * -1],
-                [costume.width / 2, (costume.height / 2) * -1],
-                [costume.width / 2, costume.height / 2],
-                [(costume.width / 2) * -1, costume.height / 2]
-            ]);
-            if (_this.costume === null) {
-                _this.switchCostume(0);
-            }
-        }, false);
-        if (!name) {
-            var costumeIndex = this.costumes.length - 1;
-            name = 'no name ' + costumeIndex;
-        }
-        this.costumeNames.push(name);
-    };
-    Sprite.prototype.switchCostume = function (costumeIndex) {
-        var _this = this;
-        this.costumeIndex = costumeIndex;
-        var costume = this.costumes[costumeIndex];
-        if (costume instanceof Costume) {
-            this.costume = costume;
-            if (this.body instanceof Polygon) {
-                this.stage.collisionSystem.remove(this.body);
-            }
-            if (costume.body instanceof Polygon) {
-                this.body = costume.body;
-                this.body.scale_x = this.size / 100;
-                this.body.scale_y = this.size / 100;
-                this.stage.collisionSystem.insert(this.body);
-            }
-            costume.image.addEventListener('load', function () {
-                _this.body = costume.body;
-                _this.body.scale_x = _this.size / 100;
-                _this.body.scale_y = _this.size / 100;
-                _this.stage.collisionSystem.insert(_this.body);
-            }, false);
-        }
-    };
-    Sprite.prototype.switchCostumeByName = function (costumeName) {
-        var costumeIndex = this.costumeNames.indexOf(costumeName);
-        if (costumeIndex > -1) {
-            this.switchCostume(costumeIndex);
-        }
-        else {
-            throw new Error('Name ' + costumeName + 'not found.');
-        }
-    };
-    Sprite.prototype.nextCostume = function () {
-        var nextCostume = this.costumeIndex + 1;
-        if (nextCostume > this.costumes.length - 1) {
-            nextCostume = 0;
-        }
-        this.switchCostume(nextCostume);
-    };
-    Sprite.prototype.changePosition = function (newPosition) {
-        this.stage.changeSpritePosition(this, newPosition);
-    };
-    Sprite.prototype.addSound = function (soundPath) {
-        var sound = new Audio();
-        sound.src = soundPath;
-        this.sounds.push(sound);
-    };
-    Sprite.prototype.playSound = function (soundIndex) {
-        var sound = this.sounds[soundIndex];
-        if (sound instanceof Audio) {
-            sound.play();
-        }
-    };
-    Sprite.prototype.move = function (steps) {
-        this.x += (steps * Math.sin(this.direction * Math.PI / 180));
-        this.y -= (steps * Math.cos(this.direction * Math.PI / 180));
-    };
-    Sprite.prototype.bounceOnEdge = function () {
-        if (this.touchTopEdge() || this.touchBottomEdge()) {
-            this.direction = 180 - this.direction;
-        }
-        if (this.touchLeftEdge() || this.touchRightEdge()) {
-            this.direction *= -1;
-        }
-    };
-    Sprite.prototype.touchSprite = function (sprite, result) {
-        if (result === void 0) { result = null; }
-        if (sprite.hidden ||
-            this.hidden ||
-            !(sprite.getBody() instanceof Body) ||
-            !(this.body instanceof Body)) {
-            return false;
-        }
-        return this.body.collides(sprite.getBody(), result);
-    };
-    Sprite.prototype.touchEdge = function (result) {
-        if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
-            return false;
-        }
-        if (this.body.collides(this.stage.getTopEdge(), result)) {
-            return true;
-        }
-        else if (this.body.collides(this.stage.getRightEdge(), result)) {
-            return true;
-        }
-        else if (this.body.collides(this.stage.getBottomEdge(), result)) {
-            return true;
-        }
-        else if (this.body.collides(this.stage.getLeftEdge(), result)) {
-            return true;
-        }
-        return false;
-    };
-    Sprite.prototype.touchTopEdge = function (result) {
-        if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
-            return false;
-        }
-        return this.body.collides(this.stage.getTopEdge(), result);
-    };
-    Sprite.prototype.touchLeftEdge = function (result) {
-        if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
-            return false;
-        }
-        return this.body.collides(this.stage.getLeftEdge(), result);
-    };
-    Sprite.prototype.touchRightEdge = function (result) {
-        if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
-            return false;
-        }
-        return this.body.collides(this.stage.getRightEdge(), result);
-    };
-    Sprite.prototype.touchBottomEdge = function (result) {
-        if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
-            return false;
-        }
-        return this.body.collides(this.stage.getBottomEdge(), result);
-    };
-    Sprite.prototype.touchMouse = function (result) {
-        if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
-            return false;
-        }
-        return this.body.collides(getMousePoint(), result);
-    };
-    Sprite.prototype.pointForward = function (sprite) {
-        this.direction = (Math.atan2(this.y - sprite.y, this.x - sprite.x) / Math.PI * 180) - 90;
-    };
-    Sprite.prototype.getDistanceTo = function (sprite) {
-        return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
-    };
-    Sprite.prototype.getDistanceToSprite = function (sprite) {
-        return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
-    };
-    Sprite.prototype.getDistanceToMouse = function (mouse) {
-        return Math.sqrt((Math.abs(this.x - mouse.x)) + (Math.abs(this.y - mouse.y)));
-    };
-    Sprite.prototype.say = function (text, time) {
-        if (time === void 0) { time = null; }
-        this.phrase = this.name + ': ' + text;
-        this.phraseLiveTime = null;
-        if (time) {
-            var currentTime = (new Date()).getTime();
-            this.phraseLiveTime = currentTime + time;
-        }
-    };
-    Sprite.prototype.getPhrase = function () {
-        if (this.phrase) {
-            if (this.phraseLiveTime === null) {
-                return this.phrase;
-            }
-            var currentTime = (new Date()).getTime();
-            if (this.phraseLiveTime > currentTime) {
-                return this.phrase;
-            }
-            else {
-                this.phrase = null;
-                this.phraseLiveTime = null;
-            }
-        }
-        return null;
-    };
-    Sprite.prototype.createClone = function () {
-        var clone = new Sprite();
-        clone.x = this.x;
-        clone.y = this.y;
-        clone.direction = this.direction;
-        clone.size = this.size;
-        clone.hidden = this.hidden;
-        clone.costume = this.costume;
-        clone.costumeIndex = this.costumeIndex;
-        clone.costumes = this.costumes;
-        clone.body = this.body;
-        clone.stopped = this.stopped;
-        return clone;
-    };
-    Sprite.prototype.cloneSprite = function () {
-        return this.createClone();
-    };
-    Sprite.prototype.timeout = function (callback, timeout) {
-        var _this = this;
-        setTimeout(function () {
-            if (_this.deleted) {
-                return;
-            }
-            requestAnimationFrame(function () { return callback(_this); });
-        }, timeout);
-    };
-    Sprite.prototype.interval = function (callback, timeout) {
-        var _this = this;
-        if (timeout === void 0) { timeout = null; }
-        if (this.deleted || this.stopped) {
-            return;
-        }
-        var result = callback(this);
-        if (result === false) {
-            return;
-        }
-        if (timeout) {
-            setTimeout(function () {
-                requestAnimationFrame(function () { return _this.interval(callback, timeout); });
-            }, timeout);
-        }
-        else {
-            requestAnimationFrame(function () { return _this.interval(callback); });
-        }
-    };
-    Sprite.prototype.forever = function (callback, timeout) {
-        if (timeout === void 0) { timeout = null; }
-        this.interval(callback, timeout);
-    };
-    Sprite.prototype.delete = function () {
-        this.stage.deleteSprite(this);
-        this.deleted = true;
-    };
-    Sprite.prototype.stop = function () {
-        this.stopped = true;
-    };
-    Sprite.prototype.getBody = function () {
-        return this.body;
-    };
-    Object.defineProperty(Sprite.prototype, "direction", {
-        get: function () {
-            return this._direction;
-        },
-        set: function (direction) {
-            if ((direction * 0) !== 0) {
-                return;
-            }
-            direction = direction % 360;
-            if (direction < 0) {
-                direction += 360;
-            }
-            this._direction = (direction > 360) ? direction - 360 : direction;
-            if (this.body instanceof Polygon) {
-                this.body.angle = this._direction * 3.14 / 180;
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Sprite.prototype, "width", {
-        get: function () {
-            if (this.costume) {
-                return this.costume.width * this.size / 100;
-            }
-            return null;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Sprite.prototype, "height", {
-        get: function () {
-            if (this.costume) {
-                return this.costume.height * this.size / 100;
-            }
-            return null;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Sprite.prototype, "x", {
-        get: function () {
-            return this._x;
-        },
-        set: function (value) {
-            this._x = value;
-            if (this.body instanceof Polygon) {
-                this.body.x = value;
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Sprite.prototype, "y", {
-        get: function () {
-            return this._y;
-        },
-        set: function (value) {
-            this._y = value;
-            if (this.body instanceof Polygon) {
-                this.body.y = value;
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Sprite.prototype, "realX", {
-        get: function () {
-            return this.x - this.width / 2;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Sprite.prototype, "realY", {
-        get: function () {
-            return this.y - this.height / 2;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    return Sprite;
-}());
-var Stage = (function () {
-    function Stage(canvasId, width, height, background, padding) {
-        if (canvasId === void 0) { canvasId = null; }
-        if (width === void 0) { width = null; }
-        if (height === void 0) { height = null; }
-        if (background === void 0) { background = null; }
-        if (padding === void 0) { padding = 0; }
-        this.debugMode = 'none';
-        this.debugBody = false;
-        this.background = null;
-        this.backgroundIndex = null;
-        this.backgrounds = [];
-        this.sprites = [];
-        this._stopped = false;
-        this._running = false;
-        this.collisionSystem = new CollisionSystem();
-        if (canvasId) {
-            var element = document.getElementById(canvasId);
-            if (element instanceof HTMLCanvasElement) {
-                this.canvas = element;
-            }
-        }
-        else {
-            this.canvas = document.createElement('canvas');
-            document.body.appendChild(this.canvas);
-        }
-        this.canvas.width = width;
-        this.canvas.height = height;
-        this.styles = new Styles(this.canvas, width, height);
-        this.context = this.canvas.getContext('2d');
-        if (background) {
-            this.addBackground(background);
-        }
-        this.padding = padding;
-        Registry.getInstance().set('stage', this);
-    }
-    Object.defineProperty(Stage.prototype, "padding", {
-        get: function () {
-            return this._padding;
-        },
-        set: function (padding) {
-            this._padding = padding;
-            this.topEdge = this.collisionSystem.createPolygon(0, 0, [[padding, padding], [this.width - padding, padding]]);
-            this.rightEdge = this.collisionSystem.createPolygon(0, 0, [[this.width - padding, padding], [this.width - padding, this.height - padding]]);
-            this.bottomEdge = this.collisionSystem.createPolygon(0, 0, [[this.width - padding, this.height - padding], [padding, this.height - padding]]);
-            this.leftEdge = this.collisionSystem.createPolygon(0, 0, [[padding, this.height - padding], [padding, padding]]);
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Stage.prototype, "width", {
-        get: function () {
-            return this.canvas.width;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Stage.prototype, "height", {
-        get: function () {
-            return this.canvas.height;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Stage.prototype, "running", {
-        get: function () {
-            return this._running;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Stage.prototype, "stopped", {
-        get: function () {
-            return this._stopped;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Stage.prototype.addSprite = function (sprite) {
-        this.sprites.push(sprite);
-        return this.sprites.length - 1;
-    };
-    Stage.prototype.deleteSprite = function (sprite) {
-        this.sprites.splice(this.sprites.indexOf(sprite), 1);
-    };
-    Stage.prototype.addBackground = function (backgroundPath) {
-        var background = new Image();
-        background.src = backgroundPath;
-        this.backgrounds.push(background);
-        if (this.backgroundIndex === null) {
-            this.switchBackground(0);
-        }
-    };
-    Stage.prototype.switchBackground = function (backgroundIndex) {
-        this.backgroundIndex = backgroundIndex;
-        var background = this.backgrounds[backgroundIndex];
-        if (background) {
-            this.background = background;
-        }
-    };
-    Stage.prototype.changeSpritePosition = function (sprite, newPosition) {
-        var oldPosition = sprite.position;
-        while (oldPosition < 0) {
-            oldPosition += this.sprites.length;
-        }
-        while (newPosition < 0) {
-            newPosition += this.sprites.length;
-        }
-        if (newPosition >= this.sprites.length) {
-            var k = newPosition - this.sprites.length + 1;
-            while (k--) {
-                this.sprites.push(undefined);
-            }
-        }
-        this.sprites.splice(newPosition, 0, this.sprites.splice(oldPosition, 1)[0]);
-        sprite.position = newPosition;
-    };
-    Stage.prototype.drawImage = function (image, x, y, w, h, direction, rotateStyle) {
-        if (rotateStyle === 'normal' && direction !== 0) {
-            this.context.save();
-            this.context.translate(x + w / 2, y + h / 2);
-            this.context.rotate(direction * Math.PI / 180);
-            this.context.translate(-x - w / 2, -y - h / 2);
-        }
-        if (rotateStyle === 'leftRight' && direction > 180) {
-            this.context.save();
-            this.context.translate(x + w / 2, 0);
-            this.context.scale(-1, 1);
-            this.context.drawImage(image, -w / 2, y, w, h);
-        }
-        else {
-            this.context.drawImage(image, x, y, w, h);
-        }
-        if (rotateStyle === 'normal' && direction !== 0 || rotateStyle === 'leftRight' && direction > 180) {
-            this.context.restore();
-        }
-    };
-    Stage.prototype.pen = function (callback) {
-        this.drawing = callback;
-    };
-    Stage.prototype.keyPressed = function (char) {
-        return keyPressed(char);
-    };
-    Stage.prototype.mouseDown = function () {
-        return mouseDown();
-    };
-    Stage.prototype.getRandom = function (min, max) {
-        return random(min, max);
-    };
-    Stage.prototype.render = function () {
-        var _this = this;
-        this.context.clearRect(0, 0, this.width, this.height);
-        if (this.backgroundColor) {
-            this.context.fillStyle = this.backgroundColor;
-            this.context.fillRect(0, 0, this.width, this.height);
-        }
-        if (this.background) {
-            this.context.drawImage(this.background, 0, 0, this.width, this.height);
-        }
-        if (this.drawing) {
-            this.drawing(this.context);
-        }
-        this.collisionSystem.update();
-        if (this.debugBody) {
-            this.collisionSystem.draw(this.context);
-            this.context.stroke();
-        }
-        var _loop_1 = function (sprite) {
-            if (sprite.hidden || !sprite.costume) {
-                return "continue";
-            }
-            if (this_1.debugMode !== 'none') {
-                var fn = function () {
-                    var x = sprite.x - (_this.context.measureText(sprite.name).width / 2);
-                    var y = sprite.realY + sprite.height + 20;
-                    _this.context.font = '16px Arial';
-                    _this.context.fillStyle = 'black';
-                    _this.context.fillText(sprite.name, x, y);
-                    y += 20;
-                    _this.context.font = '14px Arial';
-                    _this.context.fillText("x: " + sprite.x, x, y);
-                    y += 20;
-                    _this.context.fillText("y: " + sprite.y, x, y);
-                    y += 20;
-                    _this.context.fillText("direction: " + sprite.direction, x, y);
-                    y += 20;
-                    _this.context.fillText("costume: " + sprite.costumeNames[sprite.costumeIndex], x, y);
-                };
-                if (this_1.debugMode === 'hover') {
-                    if (sprite.touchMouse()) {
-                        fn();
-                    }
-                }
-                if (this_1.debugMode === 'forever') {
-                    fn();
-                }
-            }
-            var phrase = sprite.getPhrase();
-            if (phrase) {
-                this_1.context.font = '20px Arial';
-                this_1.context.fillStyle = 'black';
-                this_1.context.fillText(phrase, 40, this_1.canvas.height - 40);
-            }
-            this_1.drawImage(sprite.costume.image, sprite.x - sprite.width / 2, sprite.y - sprite.height / 2, sprite.width, sprite.height, sprite.direction, sprite.rotateStyle);
-        };
-        var this_1 = this;
-        for (var _i = 0, _a = this.sprites; _i < _a.length; _i++) {
-            var sprite = _a[_i];
-            _loop_1(sprite);
-        }
-    };
-    Stage.prototype.timeout = function (callback, timeout) {
-        var _this = this;
-        setTimeout(function () {
-            if (_this._stopped) {
-                return;
-            }
-            requestAnimationFrame(function () { return callback(_this); });
-        }, timeout);
-    };
-    Stage.prototype.interval = function (callback, timeout) {
-        var _this = this;
-        if (timeout === void 0) { timeout = null; }
-        if (this._stopped) {
-            return;
-        }
-        var result = callback(this);
-        if (result === false) {
-            return;
-        }
-        if (result > 0) {
-            timeout = result;
-        }
-        if (timeout) {
-            setTimeout(function () {
-                requestAnimationFrame(function () { return _this.interval(callback, timeout); });
-            }, timeout);
-        }
-        else {
-            requestAnimationFrame(function () { return _this.interval(callback); });
-        }
-    };
-    Stage.prototype.forever = function (callback, timeout) {
-        if (timeout === void 0) { timeout = null; }
-        this.interval(callback, timeout);
-    };
-    Stage.prototype.run = function () {
-        var _this = this;
-        this._running = true;
-        this.interval(function () {
-            _this.render();
-        });
-    };
-    Stage.prototype.stop = function () {
-        this._running = false;
-        this._stopped = true;
-        for (var _i = 0, _a = this.sprites; _i < _a.length; _i++) {
-            var sprite = _a[_i];
-            sprite.stop();
-        }
-    };
-    Stage.prototype.getTopEdge = function () {
-        return this.topEdge;
-    };
-    Stage.prototype.getRightEdge = function () {
-        return this.rightEdge;
-    };
-    Stage.prototype.getBottomEdge = function () {
-        return this.bottomEdge;
-    };
-    Stage.prototype.getLeftEdge = function () {
-        return this.leftEdge;
-    };
-    return Stage;
 }());
 var Keyboard = (function () {
     function Keyboard() {
@@ -1183,6 +536,281 @@ function getMousePoint() {
 function random(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
+var Stage = (function () {
+    function Stage(canvasId, width, height, background, padding) {
+        if (canvasId === void 0) { canvasId = null; }
+        if (width === void 0) { width = null; }
+        if (height === void 0) { height = null; }
+        if (background === void 0) { background = null; }
+        if (padding === void 0) { padding = 0; }
+        this.debugMode = 'none';
+        this.debugBody = false;
+        this.background = null;
+        this.backgroundIndex = null;
+        this.backgrounds = [];
+        this.sprites = [];
+        this._stopped = false;
+        this._running = false;
+        this.collisionSystem = new CollisionSystem();
+        if (canvasId) {
+            var element = document.getElementById(canvasId);
+            if (element instanceof HTMLCanvasElement) {
+                this.canvas = element;
+            }
+        }
+        else {
+            this.canvas = document.createElement('canvas');
+            document.body.appendChild(this.canvas);
+        }
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.styles = new Styles(this.canvas, width, height);
+        this.context = this.canvas.getContext('2d');
+        if (background) {
+            this.addBackground(background);
+        }
+        this.padding = padding;
+        Registry.getInstance().set('stage', this);
+    }
+    Object.defineProperty(Stage.prototype, "padding", {
+        get: function () {
+            return this._padding;
+        },
+        set: function (padding) {
+            this._padding = padding;
+            this.topEdge = this.collisionSystem.createPolygon(0, 0, [[padding, padding], [this.width - padding, padding]]);
+            this.rightEdge = this.collisionSystem.createPolygon(0, 0, [[this.width - padding, padding], [this.width - padding, this.height - padding]]);
+            this.bottomEdge = this.collisionSystem.createPolygon(0, 0, [[this.width - padding, this.height - padding], [padding, this.height - padding]]);
+            this.leftEdge = this.collisionSystem.createPolygon(0, 0, [[padding, this.height - padding], [padding, padding]]);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Stage.prototype, "width", {
+        get: function () {
+            return this.canvas.width;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Stage.prototype, "height", {
+        get: function () {
+            return this.canvas.height;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Stage.prototype, "running", {
+        get: function () {
+            return this._running;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Stage.prototype, "stopped", {
+        get: function () {
+            return this._stopped;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Stage.prototype.addSprite = function (sprite) {
+        this.sprites.push(sprite);
+        return this.sprites.length - 1;
+    };
+    Stage.prototype.deleteSprite = function (sprite) {
+        this.sprites.splice(this.sprites.indexOf(sprite), 1);
+    };
+    Stage.prototype.addBackground = function (backgroundPath) {
+        var background = new Image();
+        background.src = backgroundPath;
+        this.backgrounds.push(background);
+        if (this.backgroundIndex === null) {
+            this.switchBackground(0);
+        }
+    };
+    Stage.prototype.switchBackground = function (backgroundIndex) {
+        this.backgroundIndex = backgroundIndex;
+        var background = this.backgrounds[backgroundIndex];
+        if (background) {
+            this.background = background;
+        }
+    };
+    Stage.prototype.changeSpritePosition = function (sprite, newPosition) {
+        var oldPosition = sprite.position;
+        while (oldPosition < 0) {
+            oldPosition += this.sprites.length;
+        }
+        while (newPosition < 0) {
+            newPosition += this.sprites.length;
+        }
+        if (newPosition >= this.sprites.length) {
+            var k = newPosition - this.sprites.length + 1;
+            while (k--) {
+                this.sprites.push(undefined);
+            }
+        }
+        this.sprites.splice(newPosition, 0, this.sprites.splice(oldPosition, 1)[0]);
+        sprite.position = newPosition;
+    };
+    Stage.prototype.drawImage = function (image, x, y, w, h, direction, rotateStyle) {
+        if (rotateStyle === 'normal' && direction !== 0) {
+            this.context.save();
+            this.context.translate(x + w / 2, y + h / 2);
+            this.context.rotate(direction * Math.PI / 180);
+            this.context.translate(-x - w / 2, -y - h / 2);
+        }
+        if (rotateStyle === 'leftRight' && direction > 180) {
+            this.context.save();
+            this.context.translate(x + w / 2, 0);
+            this.context.scale(-1, 1);
+            this.context.drawImage(image, -w / 2, y, w, h);
+        }
+        else {
+            this.context.drawImage(image, x, y, w, h);
+        }
+        if (rotateStyle === 'normal' && direction !== 0 || rotateStyle === 'leftRight' && direction > 180) {
+            this.context.restore();
+        }
+    };
+    Stage.prototype.pen = function (callback) {
+        this.drawing = callback;
+    };
+    Stage.prototype.keyPressed = function (char) {
+        return keyPressed(char);
+    };
+    Stage.prototype.mouseDown = function () {
+        return mouseDown();
+    };
+    Stage.prototype.getRandom = function (min, max) {
+        return random(min, max);
+    };
+    Stage.prototype.render = function () {
+        var _this = this;
+        this.context.clearRect(0, 0, this.width, this.height);
+        if (this.backgroundColor) {
+            this.context.fillStyle = this.backgroundColor;
+            this.context.fillRect(0, 0, this.width, this.height);
+        }
+        if (this.background) {
+            this.context.drawImage(this.background, 0, 0, this.width, this.height);
+        }
+        if (this.drawing) {
+            this.drawing(this.context);
+        }
+        this.collisionSystem.update();
+        if (this.debugBody) {
+            this.collisionSystem.draw(this.context);
+            this.context.stroke();
+        }
+        var _loop_1 = function (sprite) {
+            if (sprite.hidden || !sprite.costume) {
+                return "continue";
+            }
+            if (this_1.debugMode !== 'none') {
+                var fn = function () {
+                    var x = sprite.x - (_this.context.measureText(sprite.name).width / 2);
+                    var y = sprite.realY + sprite.height + 20;
+                    _this.context.font = '16px Arial';
+                    _this.context.fillStyle = 'black';
+                    _this.context.fillText(sprite.name, x, y);
+                    y += 20;
+                    _this.context.font = '14px Arial';
+                    _this.context.fillText("x: " + sprite.x, x, y);
+                    y += 20;
+                    _this.context.fillText("y: " + sprite.y, x, y);
+                    y += 20;
+                    _this.context.fillText("direction: " + sprite.direction, x, y);
+                    y += 20;
+                    _this.context.fillText("costume: " + sprite.costumeNames[sprite.costumeIndex], x, y);
+                };
+                if (this_1.debugMode === 'hover') {
+                    if (sprite.touchMouse()) {
+                        fn();
+                    }
+                }
+                if (this_1.debugMode === 'forever') {
+                    fn();
+                }
+            }
+            var phrase = sprite.getPhrase();
+            if (phrase) {
+                this_1.context.font = '20px Arial';
+                this_1.context.fillStyle = 'black';
+                this_1.context.fillText(phrase, 40, this_1.canvas.height - 40);
+            }
+            this_1.drawImage(sprite.costume.image, sprite.x - sprite.width / 2, sprite.y - sprite.height / 2, sprite.width, sprite.height, sprite.direction, sprite.rotateStyle);
+        };
+        var this_1 = this;
+        for (var _i = 0, _a = this.sprites; _i < _a.length; _i++) {
+            var sprite = _a[_i];
+            _loop_1(sprite);
+        }
+    };
+    Stage.prototype.timeout = function (callback, timeout) {
+        var _this = this;
+        setTimeout(function () {
+            if (_this._stopped) {
+                return;
+            }
+            requestAnimationFrame(function () { return callback(_this); });
+        }, timeout);
+    };
+    Stage.prototype.interval = function (callback, timeout) {
+        var _this = this;
+        if (timeout === void 0) { timeout = null; }
+        if (this._stopped) {
+            return;
+        }
+        var result = callback(this);
+        if (result === false) {
+            return;
+        }
+        if (result > 0) {
+            timeout = result;
+        }
+        if (timeout) {
+            setTimeout(function () {
+                requestAnimationFrame(function () { return _this.interval(callback, timeout); });
+            }, timeout);
+        }
+        else {
+            requestAnimationFrame(function () { return _this.interval(callback); });
+        }
+    };
+    Stage.prototype.forever = function (callback, timeout) {
+        if (timeout === void 0) { timeout = null; }
+        this.interval(callback, timeout);
+    };
+    Stage.prototype.run = function () {
+        var _this = this;
+        this._running = true;
+        this.interval(function () {
+            _this.render();
+        });
+    };
+    Stage.prototype.stop = function () {
+        this._running = false;
+        this._stopped = true;
+        for (var _i = 0, _a = this.sprites; _i < _a.length; _i++) {
+            var sprite = _a[_i];
+            sprite.stop();
+        }
+    };
+    Stage.prototype.getTopEdge = function () {
+        return this.topEdge;
+    };
+    Stage.prototype.getRightEdge = function () {
+        return this.rightEdge;
+    };
+    Stage.prototype.getBottomEdge = function () {
+        return this.bottomEdge;
+    };
+    Stage.prototype.getLeftEdge = function () {
+        return this.leftEdge;
+    };
+    return Stage;
+}());
 var BVH = (function () {
     function BVH() {
         this._hierarchy = null;
@@ -1545,88 +1173,6 @@ var CollisionResult = (function () {
     }
     return CollisionResult;
 }());
-var CollisionSystem = (function () {
-    function CollisionSystem() {
-        this._bvh = new BVH();
-    }
-    CollisionSystem.prototype.createCircle = function (x, y, radius, scale, padding) {
-        if (x === void 0) { x = 0; }
-        if (y === void 0) { y = 0; }
-        if (radius === void 0) { radius = 0; }
-        if (scale === void 0) { scale = 1; }
-        if (padding === void 0) { padding = 0; }
-        var body = new Circle(x, y, radius, scale, padding);
-        this._bvh.insert(body);
-        return body;
-    };
-    CollisionSystem.prototype.createPolygon = function (x, y, points, angle, scale_x, scale_y, padding) {
-        if (x === void 0) { x = 0; }
-        if (y === void 0) { y = 0; }
-        if (points === void 0) { points = [[0, 0]]; }
-        if (angle === void 0) { angle = 0; }
-        if (scale_x === void 0) { scale_x = 1; }
-        if (scale_y === void 0) { scale_y = 1; }
-        if (padding === void 0) { padding = 0; }
-        var body = new Polygon(x, y, points, angle, scale_x, scale_y, padding);
-        this._bvh.insert(body);
-        return body;
-    };
-    CollisionSystem.prototype.createPoint = function (x, y, padding) {
-        if (x === void 0) { x = 0; }
-        if (y === void 0) { y = 0; }
-        if (padding === void 0) { padding = 0; }
-        var body = new Point(x, y, padding);
-        this._bvh.insert(body);
-        return body;
-    };
-    CollisionSystem.prototype.createResult = function () {
-        return new CollisionResult();
-    };
-    CollisionSystem.createResult = function () {
-        return new CollisionResult();
-    };
-    CollisionSystem.prototype.insert = function () {
-        var bodies = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            bodies[_i] = arguments[_i];
-        }
-        for (var _a = 0, bodies_1 = bodies; _a < bodies_1.length; _a++) {
-            var body = bodies_1[_a];
-            this._bvh.insert(body, false);
-        }
-        return this;
-    };
-    CollisionSystem.prototype.remove = function () {
-        var bodies = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            bodies[_i] = arguments[_i];
-        }
-        for (var _a = 0, bodies_2 = bodies; _a < bodies_2.length; _a++) {
-            var body = bodies_2[_a];
-            this._bvh.remove(body, false);
-        }
-        return this;
-    };
-    CollisionSystem.prototype.update = function () {
-        this._bvh.update();
-        return this;
-    };
-    CollisionSystem.prototype.draw = function (context) {
-        return this._bvh.draw(context);
-    };
-    CollisionSystem.prototype.drawBVH = function (context) {
-        return this._bvh.drawBVH(context);
-    };
-    CollisionSystem.prototype.potentials = function (body) {
-        return this._bvh.potentials(body);
-    };
-    CollisionSystem.prototype.collides = function (source, target, result, aabb) {
-        if (result === void 0) { result = null; }
-        if (aabb === void 0) { aabb = true; }
-        return SAT(source, target, result, aabb);
-    };
-    return CollisionSystem;
-}());
 function SAT(a, b, result, aabb) {
     if (result === void 0) { result = null; }
     if (aabb === void 0) { aabb = true; }
@@ -1971,5 +1517,485 @@ var Styles = (function () {
         this.canvas.height = height ? height : document.body.clientHeight;
     };
     return Styles;
+}());
+var CollisionSystem = (function () {
+    function CollisionSystem() {
+        this._bvh = new BVH();
+    }
+    CollisionSystem.prototype.createCircle = function (x, y, radius, scale, padding) {
+        if (x === void 0) { x = 0; }
+        if (y === void 0) { y = 0; }
+        if (radius === void 0) { radius = 0; }
+        if (scale === void 0) { scale = 1; }
+        if (padding === void 0) { padding = 0; }
+        var body = new Circle(x, y, radius, scale, padding);
+        this._bvh.insert(body);
+        return body;
+    };
+    CollisionSystem.prototype.createPolygon = function (x, y, points, angle, scale_x, scale_y, padding) {
+        if (x === void 0) { x = 0; }
+        if (y === void 0) { y = 0; }
+        if (points === void 0) { points = [[0, 0]]; }
+        if (angle === void 0) { angle = 0; }
+        if (scale_x === void 0) { scale_x = 1; }
+        if (scale_y === void 0) { scale_y = 1; }
+        if (padding === void 0) { padding = 0; }
+        var body = new Polygon(x, y, points, angle, scale_x, scale_y, padding);
+        this._bvh.insert(body);
+        return body;
+    };
+    CollisionSystem.prototype.createPoint = function (x, y, padding) {
+        if (x === void 0) { x = 0; }
+        if (y === void 0) { y = 0; }
+        if (padding === void 0) { padding = 0; }
+        var body = new Point(x, y, padding);
+        this._bvh.insert(body);
+        return body;
+    };
+    CollisionSystem.prototype.createResult = function () {
+        return new CollisionResult();
+    };
+    CollisionSystem.createResult = function () {
+        return new CollisionResult();
+    };
+    CollisionSystem.prototype.insert = function () {
+        var bodies = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            bodies[_i] = arguments[_i];
+        }
+        for (var _a = 0, bodies_1 = bodies; _a < bodies_1.length; _a++) {
+            var body = bodies_1[_a];
+            this._bvh.insert(body, false);
+        }
+        return this;
+    };
+    CollisionSystem.prototype.remove = function () {
+        var bodies = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            bodies[_i] = arguments[_i];
+        }
+        for (var _a = 0, bodies_2 = bodies; _a < bodies_2.length; _a++) {
+            var body = bodies_2[_a];
+            this._bvh.remove(body, false);
+        }
+        return this;
+    };
+    CollisionSystem.prototype.update = function () {
+        this._bvh.update();
+        return this;
+    };
+    CollisionSystem.prototype.draw = function (context) {
+        return this._bvh.draw(context);
+    };
+    CollisionSystem.prototype.drawBVH = function (context) {
+        return this._bvh.drawBVH(context);
+    };
+    CollisionSystem.prototype.potentials = function (body) {
+        return this._bvh.potentials(body);
+    };
+    CollisionSystem.prototype.collides = function (source, target, result, aabb) {
+        if (result === void 0) { result = null; }
+        if (aabb === void 0) { aabb = true; }
+        return SAT(source, target, result, aabb);
+    };
+    return CollisionSystem;
+}());
+var Sprite = (function () {
+    function Sprite(costumePaths, soundPaths) {
+        if (costumePaths === void 0) { costumePaths = []; }
+        if (soundPaths === void 0) { soundPaths = []; }
+        this.name = 'No name';
+        this.size = 100;
+        this.rotateStyle = 'normal';
+        this.singleBody = true;
+        this.costumeIndex = null;
+        this.costume = null;
+        this.costumes = [];
+        this.costumeNames = [];
+        this.sounds = [];
+        this.deleted = false;
+        this.stopped = false;
+        this.phraseLiveTime = null;
+        this._x = 0;
+        this._y = 0;
+        this._direction = 0;
+        this._hidden = false;
+        if (!Registry.getInstance().has('stage')) {
+            throw new Error('You need create stage before sprite.');
+        }
+        this.stage = Registry.getInstance().get('stage');
+        this.position = this.stage.addSprite(this);
+        this._x = this.stage.width / 2;
+        this._y = this.stage.height / 2;
+        for (var _i = 0, costumePaths_1 = costumePaths; _i < costumePaths_1.length; _i++) {
+            var costumePath = costumePaths_1[_i];
+            this.addCostume(costumePath);
+        }
+        for (var _a = 0, soundPaths_1 = soundPaths; _a < soundPaths_1.length; _a++) {
+            var soundPath = soundPaths_1[_a];
+            this.addSound(soundPath);
+        }
+    }
+    Sprite.prototype.addCostume = function (costumePath, name) {
+        var _this = this;
+        if (name === void 0) { name = null; }
+        var costume = new Costume();
+        var image = new Image();
+        image.src = costumePath;
+        costume.image = image;
+        this.costumes.push(costume);
+        image.addEventListener('load', function () {
+            costume.width = image.naturalWidth;
+            costume.height = image.naturalHeight;
+            costume.body = new Polygon(_this.x, _this.y, [
+                [(costume.width / 2) * -1, (costume.height / 2) * -1],
+                [costume.width / 2, (costume.height / 2) * -1],
+                [costume.width / 2, costume.height / 2],
+                [(costume.width / 2) * -1, costume.height / 2]
+            ]);
+            if (_this.costume === null) {
+                _this.switchCostume(0);
+            }
+        }, false);
+        if (!name) {
+            var costumeIndex = this.costumes.length - 1;
+            name = 'no name ' + costumeIndex;
+        }
+        this.costumeNames.push(name);
+    };
+    Sprite.prototype.switchCostume = function (costumeIndex) {
+        var _this = this;
+        this.costumeIndex = costumeIndex;
+        var costume = this.costumes[costumeIndex];
+        if (costume instanceof Costume) {
+            this.costume = costume;
+            if (this.singleBody) {
+                if (!(this.body instanceof Polygon)) {
+                    this.createBody(costume);
+                }
+                costume.image.addEventListener('load', function () {
+                    _this.createBody(costume);
+                }, false);
+            }
+            else {
+                if (this.body instanceof Polygon) {
+                    this.removeBody();
+                }
+                if (costume.body instanceof Polygon) {
+                    this.createBody(costume);
+                }
+                costume.image.addEventListener('load', function () {
+                    _this.createBody(costume);
+                }, false);
+            }
+        }
+    };
+    Sprite.prototype.switchCostumeByName = function (costumeName) {
+        var costumeIndex = this.costumeNames.indexOf(costumeName);
+        if (costumeIndex > -1) {
+            this.switchCostume(costumeIndex);
+        }
+        else {
+            throw new Error('Name ' + costumeName + 'not found.');
+        }
+    };
+    Sprite.prototype.nextCostume = function () {
+        var nextCostume = this.costumeIndex + 1;
+        if (nextCostume > this.costumes.length - 1) {
+            nextCostume = 0;
+        }
+        this.switchCostume(nextCostume);
+    };
+    Sprite.prototype.changePosition = function (newPosition) {
+        this.stage.changeSpritePosition(this, newPosition);
+    };
+    Sprite.prototype.addSound = function (soundPath) {
+        var sound = new Audio();
+        sound.src = soundPath;
+        this.sounds.push(sound);
+    };
+    Sprite.prototype.playSound = function (soundIndex) {
+        var sound = this.sounds[soundIndex];
+        if (sound instanceof Audio) {
+            sound.play();
+        }
+    };
+    Sprite.prototype.move = function (steps) {
+        this.x += (steps * Math.sin(this.direction * Math.PI / 180));
+        this.y -= (steps * Math.cos(this.direction * Math.PI / 180));
+    };
+    Sprite.prototype.bounceOnEdge = function () {
+        if (this.touchTopEdge() || this.touchBottomEdge()) {
+            this.direction = 180 - this.direction;
+        }
+        if (this.touchLeftEdge() || this.touchRightEdge()) {
+            this.direction *= -1;
+        }
+    };
+    Sprite.prototype.touchSprite = function (sprite, result) {
+        if (result === void 0) { result = null; }
+        if (sprite.hidden ||
+            this.hidden ||
+            !(sprite.getBody() instanceof Body) ||
+            !(this.body instanceof Body)) {
+            return false;
+        }
+        return this.body.collides(sprite.getBody(), result);
+    };
+    Sprite.prototype.touchEdge = function (result) {
+        if (result === void 0) { result = null; }
+        if (!(this.body instanceof Body)) {
+            return false;
+        }
+        if (this.body.collides(this.stage.getTopEdge(), result)) {
+            return true;
+        }
+        else if (this.body.collides(this.stage.getRightEdge(), result)) {
+            return true;
+        }
+        else if (this.body.collides(this.stage.getBottomEdge(), result)) {
+            return true;
+        }
+        else if (this.body.collides(this.stage.getLeftEdge(), result)) {
+            return true;
+        }
+        return false;
+    };
+    Sprite.prototype.touchTopEdge = function (result) {
+        if (result === void 0) { result = null; }
+        if (!(this.body instanceof Body)) {
+            return false;
+        }
+        return this.body.collides(this.stage.getTopEdge(), result);
+    };
+    Sprite.prototype.touchLeftEdge = function (result) {
+        if (result === void 0) { result = null; }
+        if (!(this.body instanceof Body)) {
+            return false;
+        }
+        return this.body.collides(this.stage.getLeftEdge(), result);
+    };
+    Sprite.prototype.touchRightEdge = function (result) {
+        if (result === void 0) { result = null; }
+        if (!(this.body instanceof Body)) {
+            return false;
+        }
+        return this.body.collides(this.stage.getRightEdge(), result);
+    };
+    Sprite.prototype.touchBottomEdge = function (result) {
+        if (result === void 0) { result = null; }
+        if (!(this.body instanceof Body)) {
+            return false;
+        }
+        return this.body.collides(this.stage.getBottomEdge(), result);
+    };
+    Sprite.prototype.touchMouse = function (result) {
+        if (result === void 0) { result = null; }
+        if (!(this.body instanceof Body)) {
+            return false;
+        }
+        return this.body.collides(getMousePoint(), result);
+    };
+    Sprite.prototype.pointForward = function (sprite) {
+        this.direction = (Math.atan2(this.y - sprite.y, this.x - sprite.x) / Math.PI * 180) - 90;
+    };
+    Sprite.prototype.getDistanceTo = function (sprite) {
+        return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
+    };
+    Sprite.prototype.getDistanceToSprite = function (sprite) {
+        return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
+    };
+    Sprite.prototype.getDistanceToMouse = function (mouse) {
+        return Math.sqrt((Math.abs(this.x - mouse.x)) + (Math.abs(this.y - mouse.y)));
+    };
+    Sprite.prototype.say = function (text, time) {
+        if (time === void 0) { time = null; }
+        this.phrase = this.name + ': ' + text;
+        this.phraseLiveTime = null;
+        if (time) {
+            var currentTime = (new Date()).getTime();
+            this.phraseLiveTime = currentTime + time;
+        }
+    };
+    Sprite.prototype.getPhrase = function () {
+        if (this.phrase) {
+            if (this.phraseLiveTime === null) {
+                return this.phrase;
+            }
+            var currentTime = (new Date()).getTime();
+            if (this.phraseLiveTime > currentTime) {
+                return this.phrase;
+            }
+            else {
+                this.phrase = null;
+                this.phraseLiveTime = null;
+            }
+        }
+        return null;
+    };
+    Sprite.prototype.createClone = function () {
+        var clone = new Sprite();
+        clone.x = this.x;
+        clone.y = this.y;
+        clone.direction = this.direction;
+        clone.size = this.size;
+        clone.hidden = this.hidden;
+        for (var _i = 0, _a = this.costumes; _i < _a.length; _i++) {
+            var costume = _a[_i];
+            clone.addCostume(costume.image.src);
+        }
+        clone.switchCostume(this.costumeIndex);
+        clone.deleted = this.deleted;
+        clone.stopped = this.stopped;
+        return clone;
+    };
+    Sprite.prototype.cloneSprite = function () {
+        return this.createClone();
+    };
+    Sprite.prototype.timeout = function (callback, timeout) {
+        var _this = this;
+        setTimeout(function () {
+            if (_this.deleted) {
+                return;
+            }
+            requestAnimationFrame(function () { return callback(_this); });
+        }, timeout);
+    };
+    Sprite.prototype.interval = function (callback, timeout) {
+        var _this = this;
+        if (timeout === void 0) { timeout = null; }
+        if (this.deleted || this.stopped) {
+            return;
+        }
+        var result = callback(this);
+        if (result === false) {
+            return;
+        }
+        if (timeout) {
+            setTimeout(function () {
+                requestAnimationFrame(function () { return _this.interval(callback, timeout); });
+            }, timeout);
+        }
+        else {
+            requestAnimationFrame(function () { return _this.interval(callback); });
+        }
+    };
+    Sprite.prototype.forever = function (callback, timeout) {
+        if (timeout === void 0) { timeout = null; }
+        this.interval(callback, timeout);
+    };
+    Sprite.prototype.delete = function () {
+        this.stage.deleteSprite(this);
+        this.deleted = true;
+    };
+    Sprite.prototype.stop = function () {
+        this.stopped = true;
+    };
+    Sprite.prototype.getBody = function () {
+        return this.body;
+    };
+    Object.defineProperty(Sprite.prototype, "direction", {
+        get: function () {
+            return this._direction;
+        },
+        set: function (direction) {
+            if ((direction * 0) !== 0) {
+                return;
+            }
+            direction = direction % 360;
+            if (direction < 0) {
+                direction += 360;
+            }
+            this._direction = (direction > 360) ? direction - 360 : direction;
+            if (this.body instanceof Polygon) {
+                this.body.angle = this._direction * 3.14 / 180;
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "width", {
+        get: function () {
+            if (this.costume) {
+                return this.costume.width * this.size / 100;
+            }
+            return null;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "height", {
+        get: function () {
+            if (this.costume) {
+                return this.costume.height * this.size / 100;
+            }
+            return null;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "x", {
+        get: function () {
+            return this._x;
+        },
+        set: function (value) {
+            this._x = value;
+            if (this.body instanceof Polygon) {
+                this.body.x = value;
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "y", {
+        get: function () {
+            return this._y;
+        },
+        set: function (value) {
+            this._y = value;
+            if (this.body instanceof Polygon) {
+                this.body.y = value;
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "realX", {
+        get: function () {
+            return this.x - this.width / 2;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "realY", {
+        get: function () {
+            return this.y - this.height / 2;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "hidden", {
+        get: function () {
+            return this._hidden;
+        },
+        set: function (value) {
+            this._hidden = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Sprite.prototype.removeBody = function () {
+        if (this.body instanceof Polygon) {
+            this.stage.collisionSystem.remove(this.body);
+            this.body = null;
+        }
+    };
+    Sprite.prototype.createBody = function (costume) {
+        this.body = costume.body;
+        this.body.scale_x = this.size / 100;
+        this.body.scale_y = this.size / 100;
+        this.stage.collisionSystem.insert(this.body);
+    };
+    return Sprite;
 }());
 //# sourceMappingURL=scrub.js.map

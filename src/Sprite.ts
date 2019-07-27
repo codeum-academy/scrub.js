@@ -290,11 +290,13 @@ class Sprite {
         clone.direction = this.direction;
         clone.size = this.size;
         clone.hidden = this.hidden;
-        clone.costume = this.costume;
-        clone.costumeIndex = this.costumeIndex;
-        clone.costumes = this.costumes;
-        clone.body = this.body;
 
+        for (const costume of this.costumes) {
+            clone.addCostume(costume.image.src);
+        }
+        clone.switchCostume(this.costumeIndex);
+
+        clone.deleted = this.deleted;
         clone.stopped = this.stopped;
 
         return clone;
