@@ -4,8 +4,8 @@ class Stage {
     collisionSystem: CollisionSystem;
     debugMode = 'none'; // none, hover, forever;
     debugBody = false;
+    backgroundColor;
 
-    private backgroundColor;
     private background = null;
     private backgroundIndex = null;
     private backgrounds = [];
