@@ -1,3 +1,7 @@
+const SPRITE_READY_EVENT = 'sprite.ready';
+const SPRITE_COSTUME_READY_EVENT = 'sprite.costume_ready';
+const SPRITE_SOUND_READY_EVENT = 'sprite.sound_ready';
+
 class Sprite {
     name = 'No name';
     size = 100;
@@ -11,6 +15,7 @@ class Sprite {
     private costumes = [];
     private costumeNames = [];
     private sounds = [];
+    private soundNames = [];
     private deleted = false;
     private stopped = false;
     private phrase;
@@ -20,11 +25,17 @@ class Sprite {
     private _y = 0;
     private _direction = 0;
     private _hidden = false;
+    private loadedCostumes = 0;
+    private loadedSounds = 0;
+    private onReadyCallback;
+    private objectSymbol;
 
     constructor(costumePaths = [], soundPaths = []) {
         if (!Registry.getInstance().has('stage')) {
             throw new Error('You need create stage before sprite.');
         }
+
+        this.objectSymbol = Symbol();
 
         this.stage = Registry.getInstance().get('stage');
         this.position = this.stage.addSprite(this);
@@ -39,6 +50,16 @@ class Sprite {
         for (const soundPath of soundPaths) {
             this.addSound(soundPath);
         }
+        
+        this.addListeners();
+    }
+
+    isReady() {
+        return this.loadedCostumes == this.costumes.length && this.loadedSounds == this.sounds.length;
+    }
+
+    onReady(onReadyCallback) {
+        this.onReadyCallback = onReadyCallback;
     }
 
     addCostume(
@@ -53,13 +74,23 @@ class Sprite {
         paddingBottom: number = 0,
         paddingLeft: number = 0
     ): void {
+        const costume = new Costume();
+
+        if (!name) {
+            const costumeIndex = this.costumes.length;
+            name = 'No name ' + costumeIndex;
+        }
+
+        this.costumes.push(costume);
+        this.costumeNames.push(name);
+
         const image = new Image();
         image.src = costumePath;
 
         image.addEventListener('load', () => {
             this.addCostumeByImage(
+                costume,
                 image,
-                name,
                 x,
                 y,
                 width,
@@ -72,9 +103,9 @@ class Sprite {
         }, false);
     }
 
-    addCostumeByImage(
+    private addCostumeByImage(
+        costume: Costume,
         image: HTMLImageElement,
-        name: string = null,
         x: number = 0,
         y: number = 0,
         width: number = null,
@@ -92,11 +123,7 @@ class Sprite {
             height = image.naturalHeight;
         }
 
-        const costume = new Costume();
-
         costume.image = image;
-        this.costumes.push(costume);
-
         costume.x = x;
         costume.y = y;
         costume.width = width;
@@ -109,16 +136,15 @@ class Sprite {
             [(costume.width / 2) * -1 + paddingLeft * -1, costume.height / 2  + paddingBottom]
         ]);
 
-        if (this.costume === null) {
-            this.switchCostume(0);
-        }
+        costume.ready = true;
 
-        if (!name) {
-            const costumeIndex = this.costumes.length - 1;
-            name = 'no name ' + costumeIndex;
-        }
-
-        this.costumeNames.push(name);
+        event = new CustomEvent(SPRITE_COSTUME_READY_EVENT, {
+            detail: {
+                costume: costume,
+                objectSymbol: this.objectSymbol
+            }
+        });
+        document.dispatchEvent(event);
     }
 
     addCostumes(
@@ -135,6 +161,10 @@ class Sprite {
     ) {
         const image = new Image();
         image.src = costumePath;
+
+        if (!name) {
+            name = 'No name';
+        }
 
         image.addEventListener('load', () => {
             image.naturalWidth;
@@ -168,14 +198,19 @@ class Sprite {
                             }
                         }
 
+                        const costume = new Costume();
+
                         let costumeName = name;
                         if (costumeName !== null) {
                             costumeName += ' ' + costumeIndex;
                         }
 
+                        this.costumes.push(costume);
+                        this.costumeNames.push(name);
+
                         this.addCostumeByImage(
+                            costume,
                             image,
-                            costumeName,
                             x,
                             y,
                             chunkWidth,
@@ -202,7 +237,7 @@ class Sprite {
         this.costumeIndex = costumeIndex;
         const costume = this.costumes[costumeIndex];
 
-        if (costume instanceof Costume) {
+        if (costume instanceof Costume && costume.ready) {
             this.costume = costume;
 
             if (this.singleBody) {
@@ -256,18 +291,79 @@ class Sprite {
         this.stage.changeSpritePosition(this, newPosition);
     }
 
-    addSound(soundPath): void {
+    addSound(soundPath, name: string = null): void {
+        if (!name) {
+            name = 'No name ' + this.sounds.length;
+        }
+
         const sound = new Audio();
         sound.src = soundPath;
 
         this.sounds.push(sound);
+        this.soundNames.push(name);
+
+        sound.load();
+        sound.addEventListener('loadedmetadata', () => {
+            event = new CustomEvent(SPRITE_SOUND_READY_EVENT, {
+                detail: {
+                    sound: sound,
+                    objectSymbol: this.objectSymbol
+                }
+            });
+
+            document.dispatchEvent(event);
+        }, false);
     }
 
-    playSound(soundIndex): void {
+    playSound(soundIndex, volume: number = null, currentTime: number = null): void {
         const sound = this.sounds[soundIndex];
 
         if (sound instanceof Audio) {
             sound.play();
+
+            if (volume !== null) {
+                sound.volume = volume;
+            }
+
+            if (currentTime !== null) {
+                sound.currentTime = currentTime;
+            }
+
+        } else {
+          throw new Error('Sound with index "' + soundIndex +  '" not found.');
+        }
+    }
+
+    pauseSound(soundIndex): void {
+        const sound = this.sounds[soundIndex];
+
+        if (sound instanceof Audio) {
+            sound.pause();
+
+        } else {
+            throw new Error('Sound with index "' + soundIndex +  '" not found.');
+        }
+    }
+
+    playSoundByName(soundName, volume: number = null, currentTime: number = null): void {
+        const soundIndex = this.soundNames.indexOf(soundName);
+
+        if (soundIndex > -1) {
+            this.playSound(soundIndex, volume, currentTime);
+
+        } else {
+            throw new Error('Name ' + soundName +  'not found.');
+        }
+    }
+
+    pauseSoundByName(soundName): void {
+        const soundIndex = this.soundNames.indexOf(soundName);
+
+        if (soundIndex > -1) {
+            this.pauseSound(soundIndex);
+
+        } else {
+            throw new Error('Name ' + soundName +  'not found.');
         }
     }
 
@@ -621,6 +717,41 @@ class Sprite {
 
     get hidden() {
         return this._hidden;
+    }
+
+    private addListeners() {
+        document.addEventListener(SPRITE_COSTUME_READY_EVENT, (event: CustomEvent) => {
+            if (this.objectSymbol == event.detail.objectSymbol) {
+                this.loadedCostumes++;
+                this.runOnReadyCallback();
+
+                if (this.loadedCostumes == this.costumes.length && this.costume === null) {
+                    this.switchCostume(0);
+                }
+            }
+        });
+
+        document.addEventListener(SPRITE_SOUND_READY_EVENT, (event: CustomEvent) => {
+            if (this.objectSymbol == event.detail.objectSymbol) {
+                this.loadedSounds++;
+                this.runOnReadyCallback();
+            }
+        });
+    }
+
+    private runOnReadyCallback() {
+        if (this.isReady()) {
+            let event = new CustomEvent(SPRITE_READY_EVENT, {
+                detail: {
+                    sprite: this
+                }
+            });
+            document.dispatchEvent(event);
+
+            if (this.onReadyCallback) {
+                this.onReadyCallback();
+            }
+        }
     }
 
     private removeBody() {

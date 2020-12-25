@@ -1,3 +1,6 @@
+const STAGE_READY_EVENT = 'stage.ready';
+const STAGE_BACKGROUND_READY_EVENT = 'stage.background_ready';
+
 class Stage {
     canvas: HTMLCanvasElement;
     context: CanvasRenderingContext2D;
@@ -6,6 +9,7 @@ class Stage {
     debugBody = false;
     backgroundColor;
 
+    private objectSymbol;
     private background = null;
     private backgroundIndex = null;
     private backgrounds = [];
@@ -16,11 +20,16 @@ class Stage {
     private rightEdge: Polygon;
     private bottomEdge: Polygon;
     private leftEdge: Polygon;
+    private loadedSprites = 0;
+    private loadedBackgrounds = 0;
+    private pendingRun = false;
+    private onReadyCallback;
     private _stopped = false;
     private _padding: number;
     private _running = false;
 
     constructor(canvasId: string = null, width: number = null, height: number = null, background: string = null, padding = 0) {
+        this.objectSymbol = Symbol();
         this.collisionSystem = new CollisionSystem();
 
         if (canvasId) {
@@ -46,6 +55,8 @@ class Stage {
 
         this.padding = padding;
         Registry.getInstance().set('stage', this);
+
+        this.addListeners();
     }
 
     set padding(padding: number) {
@@ -93,9 +104,16 @@ class Stage {
 
         this.backgrounds.push(background);
 
-        if (this.backgroundIndex === null) {
-            this.switchBackground(0);
-        }
+        background.addEventListener('load', () => {
+            event = new CustomEvent(STAGE_BACKGROUND_READY_EVENT, {
+                detail: {
+                    background: background,
+                    objectSymbol: this.objectSymbol
+                }
+            });
+
+            document.dispatchEvent(event);
+        });
     }
 
     switchBackground(backgroundIndex: number): void {
@@ -315,12 +333,17 @@ class Stage {
         this.interval(callback, timeout);
     }
 
-    run(): void {
-        this._running = true;
+    isReady() {
+        return this.loadedSprites == this.sprites.length && this.loadedBackgrounds == this.backgrounds.length;
+    }
 
-        this.interval(() => {
-            this.render();
-        });
+    run(): void {
+        this.pendingRun = true;
+        this.doRun();
+    }
+
+    onReady(onReadyCallback) {
+        this.onReadyCallback = onReadyCallback;
     }
 
     stop(): void {
@@ -346,5 +369,51 @@ class Stage {
 
     getLeftEdge(): Polygon {
         return this.leftEdge;
+    }
+
+    private addListeners() {
+        document.addEventListener(SPRITE_READY_EVENT, (event: CustomEvent) => {
+            this.loadedSprites++;
+            this.runOnReadyCallback();
+            this.doRun();
+        });
+
+        document.addEventListener(STAGE_BACKGROUND_READY_EVENT, (event: CustomEvent) => {
+            if (this.objectSymbol == event.detail.objectSymbol) {
+                this.loadedBackgrounds++;
+                this.runOnReadyCallback();
+                this.doRun();
+
+                if (this.loadedBackgrounds == this.backgrounds.length && this.backgroundIndex === null) {
+                    this.switchBackground(0);
+                }
+            }
+        });
+    }
+
+    private runOnReadyCallback() {
+        if (this.isReady()) {
+            let event = new CustomEvent(STAGE_READY_EVENT, {
+                detail: {
+                    stage: this
+                }
+            });
+            document.dispatchEvent(event);
+
+            if (this.onReadyCallback) {
+                this.onReadyCallback();
+            }
+        }
+    }
+
+    private doRun() {
+        if (this.pendingRun && this.isReady()) {
+            this._running = true;
+            this.pendingRun = false;
+
+            this.interval(() => {
+                this.render();
+            });
+        }
     }
 }

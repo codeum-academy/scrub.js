@@ -277,4 +277,24 @@ class Keyboard {
     keyPressed(char) {
         return this.keys[char.toUpperCase()] !== undefined;
     }
+
+    keyDown(char: string, callback) {
+        document.addEventListener('keydown', (event) => {
+            const pressedChar = this.keyboardMap[event.keyCode];
+
+            if (char.toUpperCase() == pressedChar) {
+                callback(event);
+            }
+        });
+    }
+
+    keyUp(char: string, callback) {
+        document.addEventListener('keyup', (event) => {
+            const pressedChar = this.keyboardMap[event.keyCode];
+
+            if (char.toUpperCase() == pressedChar) {
+                callback(event);
+            }
+        });
+    }
 }

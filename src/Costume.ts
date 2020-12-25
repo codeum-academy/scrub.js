@@ -5,4 +5,5 @@ class Costume {
     x: number = 0;
     y: number = 0;
     body: Polygon;
+    ready = false;
 }

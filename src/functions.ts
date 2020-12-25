@@ -9,6 +9,14 @@ function keyPressed(char: string): boolean {
     return keyboard.keyPressed(char);
 }
 
+function keyDown(char: string, callback): void {
+    keyboard.keyDown(char, callback);
+}
+
+function keyUp(char: string, callback): void {
+    keyboard.keyUp(char, callback);
+}
+
 function mouseDown(): boolean {
     return mouse.isDown;
 }
