@@ -101,6 +101,10 @@ class Sprite {
                 paddingLeft
             );
         }, false);
+
+        image.addEventListener('error', () => {
+            throw Error('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
+        });
     }
 
     private addCostumeByImage(
@@ -234,10 +238,10 @@ class Sprite {
     }
 
     switchCostume(costumeIndex): void {
-        this.costumeIndex = costumeIndex;
         const costume = this.costumes[costumeIndex];
 
         if (costume instanceof Costume && costume.ready) {
+            this.costumeIndex = costumeIndex;
             this.costume = costume;
 
             if (this.singleBody) {
@@ -539,6 +543,10 @@ class Sprite {
     }
 
     createClone(): Sprite {
+        if (!this.isReady()) {
+            throw new Error('Sprite cannot be cloned because one is not ready.');
+        }
+
         const clone = new Sprite();
 
         clone.x = this.x;

@@ -114,6 +114,10 @@ class Stage {
 
             document.dispatchEvent(event);
         });
+
+        background.addEventListener('error', () => {
+            throw Error('Background image "' + backgroundPath + '" was not loaded. Check that the path is correct.');
+        });
     }
 
     switchBackground(backgroundIndex: number): void {

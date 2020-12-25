@@ -92,6 +92,9 @@ var Sprite = (function () {
         image.addEventListener('load', function () {
             _this.addCostumeByImage(costume, image, x, y, width, height, paddingTop, paddingRight, paddingBottom, paddingLeft);
         }, false);
+        image.addEventListener('error', function () {
+            throw Error('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
+        });
     };
     Sprite.prototype.addCostumeByImage = function (costume, image, x, y, width, height, paddingTop, paddingRight, paddingBottom, paddingLeft) {
         if (x === void 0) { x = 0; }
@@ -189,9 +192,9 @@ var Sprite = (function () {
     };
     Sprite.prototype.switchCostume = function (costumeIndex) {
         var _this = this;
-        this.costumeIndex = costumeIndex;
         var costume = this.costumes[costumeIndex];
         if (costume instanceof Costume && costume.ready) {
+            this.costumeIndex = costumeIndex;
             this.costume = costume;
             if (this.singleBody) {
                 if (!(this.body instanceof Polygon)) {
@@ -448,6 +451,9 @@ var Sprite = (function () {
         return null;
     };
     Sprite.prototype.createClone = function () {
+        if (!this.isReady()) {
+            throw new Error('Sprite cannot be cloned because one is not ready.');
+        }
         var clone = new Sprite();
         clone.x = this.x;
         clone.y = this.y;
@@ -763,6 +769,9 @@ var Stage = (function () {
                 }
             });
             document.dispatchEvent(event);
+        });
+        background.addEventListener('error', function () {
+            throw Error('Background image "' + backgroundPath + '" was not loaded. Check that the path is correct.');
         });
     };
     Stage.prototype.switchBackground = function (backgroundIndex) {
