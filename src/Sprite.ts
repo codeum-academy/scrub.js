@@ -1,13 +1,11 @@
-const SPRITE_READY_EVENT = 'sprite.ready';
-const SPRITE_COSTUME_READY_EVENT = 'sprite.costume_ready';
-const SPRITE_SOUND_READY_EVENT = 'sprite.sound_ready';
-
 class Sprite {
+    id: Symbol;
     name = 'No name';
     size = 100;
     rotateStyle = 'normal'; // 'normal', 'leftRight', 'none'
     singleBody = true;
 
+    private game: Game;
     private body: Polygon;
     private costumeIndex = null;
     private costume: Costume = null;
@@ -17,7 +15,6 @@ class Sprite {
     private sounds = [];
     private soundNames = [];
     private deleted = false;
-    private stopped = false;
     private phrase;
     private phraseLiveTime = null;
     public position; // remake to getter and setter
@@ -25,23 +22,33 @@ class Sprite {
     private _y = 0;
     private _direction = 0;
     private _hidden = false;
+    private _stopped = true;
     private loadedCostumes = 0;
     private loadedSounds = 0;
-    private onReadyCallback;
-    private objectSymbol;
+    private onReadyCallbacks = [];
+    private onReadyPending = true;
 
-    constructor(costumePaths = [], soundPaths = []) {
-        if (!Registry.getInstance().has('stage')) {
-            throw new Error('You need create stage before sprite.');
+    constructor(stage: Stage = null, costumePaths = [], soundPaths = []) {
+        this.id = Symbol();
+
+        if (!Registry.getInstance().has('game')) {
+            this.game.throwError('You need create Game instance before Sprite instance.');
+        }
+        this.game = Registry.getInstance().get('game');
+
+        this.stage = stage;
+        if (!this.stage) {
+            this.stage = this.game.getLastStage();
         }
 
-        this.objectSymbol = Symbol();
+        if (!this.stage) {
+            this.game.throwError('You need create Stage instance before Sprite instance.');
+        }
 
-        this.stage = Registry.getInstance().get('stage');
         this.position = this.stage.addSprite(this);
 
-        this._x = this.stage.width / 2;
-        this._y = this.stage.height / 2;
+        this._x = this.game.width / 2;
+        this._y = this.game.height / 2;
 
         for (const costumePath of costumePaths) {
             this.addCostume(costumePath);
@@ -58,8 +65,8 @@ class Sprite {
         return this.loadedCostumes == this.costumes.length && this.loadedSounds == this.sounds.length;
     }
 
-    onReady(onReadyCallback) {
-        this.onReadyCallback = onReadyCallback;
+    onReady(callback) {
+        this.onReadyCallbacks.push(callback);
     }
 
     addCostume(
@@ -103,7 +110,7 @@ class Sprite {
         }, false);
 
         image.addEventListener('error', () => {
-            throw Error('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
+            this.game.throwError('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
         });
     }
 
@@ -145,7 +152,7 @@ class Sprite {
         event = new CustomEvent(SPRITE_COSTUME_READY_EVENT, {
             detail: {
                 costume: costume,
-                objectSymbol: this.objectSymbol
+                spriteId: this.id
             }
         });
         document.dispatchEvent(event);
@@ -277,7 +284,7 @@ class Sprite {
             this.switchCostume(costumeIndex);
 
         } else {
-            throw new Error('Name ' + costumeName +  'not found.');
+            this.game.throwError('Name ' + costumeName +  'not found.');
         }
     }
 
@@ -311,7 +318,7 @@ class Sprite {
             event = new CustomEvent(SPRITE_SOUND_READY_EVENT, {
                 detail: {
                     sound: sound,
-                    objectSymbol: this.objectSymbol
+                    spriteId: this.id
                 }
             });
 
@@ -334,7 +341,7 @@ class Sprite {
             }
 
         } else {
-          throw new Error('Sound with index "' + soundIndex +  '" not found.');
+            this.game.throwError('Sound with index "' + soundIndex +  '" not found.');
         }
     }
 
@@ -345,7 +352,7 @@ class Sprite {
             sound.pause();
 
         } else {
-            throw new Error('Sound with index "' + soundIndex +  '" not found.');
+            this.game.throwError('Sound with index "' + soundIndex +  '" not found.');
         }
     }
 
@@ -356,7 +363,7 @@ class Sprite {
             this.playSound(soundIndex, volume, currentTime);
 
         } else {
-            throw new Error('Name ' + soundName +  'not found.');
+            this.game.throwError('Name ' + soundName +  'not found.');
         }
     }
 
@@ -367,7 +374,7 @@ class Sprite {
             this.pauseSound(soundIndex);
 
         } else {
-            throw new Error('Name ' + soundName +  'not found.');
+            this.game.throwError('Name ' + soundName +  'not found.');
         }
     }
 
@@ -390,6 +397,8 @@ class Sprite {
         if (
             sprite.hidden ||
             this.hidden ||
+            sprite.stopped ||
+            this.stopped ||
             !(sprite.getBody() instanceof Body) ||
             !(this.body instanceof Body)
         ) {
@@ -493,16 +502,11 @@ class Sprite {
             return false;
         }
 
-        return this.body.collides(getMousePoint(), result);
+        return this.body.collides(this.game.getMousePoint(), result);
     }
 
     pointForward(sprite): void {
         this.direction = (Math.atan2(this.y - sprite.y , this.x - sprite.x) / Math.PI * 180) - 90
-    }
-
-    // TODO deprecated
-    getDistanceTo(sprite: Sprite|Mouse): number {
-        return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
     }
 
     getDistanceToSprite(sprite: Sprite): number {
@@ -542,12 +546,16 @@ class Sprite {
         return null;
     }
 
-    createClone(): Sprite {
+    createClone(stage: Stage = null): Sprite {
         if (!this.isReady()) {
-            throw new Error('Sprite cannot be cloned because one is not ready.');
+            this.game.throwError('Sprite cannot be cloned because one is not ready.');
         }
 
-        const clone = new Sprite();
+        if (!stage) {
+            stage = this.stage;
+        }
+
+        const clone = new Sprite(stage);
 
         clone.x = this.x;
         clone.y = this.y;
@@ -561,14 +569,8 @@ class Sprite {
         clone.switchCostume(this.costumeIndex);
 
         clone.deleted = this.deleted;
-        clone.stopped = this.stopped;
 
         return clone;
-    }
-
-    // @deprecated
-    cloneSprite(): Sprite {
-        return this.createClone();
     }
 
     timeout(callback, timeout: number): void {
@@ -581,7 +583,7 @@ class Sprite {
         }, timeout);
     }
 
-    interval(callback, timeout = null): void {
+    forever(callback, timeout = null): void {
         if (this.deleted || this.stopped) {
             return;
         }
@@ -593,17 +595,12 @@ class Sprite {
 
         if (timeout) {
             setTimeout(() => {
-                requestAnimationFrame(() => this.interval(callback, timeout));
+                requestAnimationFrame(() => this.forever(callback, timeout));
             }, timeout);
 
         } else {
-            requestAnimationFrame(() => this.interval(callback));
+            requestAnimationFrame(() => this.forever(callback));
         }
-    }
-
-    // @deprecated
-    forever(callback, timeout = null): void {
-        this.interval(callback, timeout);
     }
 
     delete(): void {
@@ -611,7 +608,7 @@ class Sprite {
             return;
         }
 
-        this.stage.deleteSprite(this);
+        this.stage.removeSprite(this);
 
         let props = Object.keys(this);
         for (let i = 0; i < props.length; i++) {
@@ -621,8 +618,12 @@ class Sprite {
         this.deleted = true;
     }
 
+    run(): void {
+        this._stopped = false;
+    }
+
     stop(): void {
-        this.stopped = true;
+        this._stopped = true;
     }
 
     getBody(): Polygon {
@@ -727,11 +728,15 @@ class Sprite {
         return this._hidden;
     }
 
+    get stopped() {
+        return this._stopped;
+    }
+
     private addListeners() {
         document.addEventListener(SPRITE_COSTUME_READY_EVENT, (event: CustomEvent) => {
-            if (this.objectSymbol == event.detail.objectSymbol) {
+            if (this.id == event.detail.spriteId) {
                 this.loadedCostumes++;
-                this.runOnReadyCallback();
+                this.tryDoOnReady();
 
                 if (this.loadedCostumes == this.costumes.length && this.costume === null) {
                     this.switchCostume(0);
@@ -740,25 +745,31 @@ class Sprite {
         });
 
         document.addEventListener(SPRITE_SOUND_READY_EVENT, (event: CustomEvent) => {
-            if (this.objectSymbol == event.detail.objectSymbol) {
+            if (this.id == event.detail.spriteId) {
                 this.loadedSounds++;
-                this.runOnReadyCallback();
+                this.tryDoOnReady();
             }
         });
     }
 
-    private runOnReadyCallback() {
-        if (this.isReady()) {
+    private tryDoOnReady() {
+        if (this.isReady() && this.onReadyPending) {
+            this.onReadyPending = false;
+
+            if (this.onReadyCallbacks.length) {
+                for (const callback of this.onReadyCallbacks) {
+                    callback();
+                }
+                this.onReadyCallbacks = [];
+            }
+
             let event = new CustomEvent(SPRITE_READY_EVENT, {
                 detail: {
-                    sprite: this
+                    sprite: this,
+                    stageId: this.stage.id
                 }
             });
             document.dispatchEvent(event);
-
-            if (this.onReadyCallback) {
-                this.onReadyCallback();
-            }
         }
     }
 

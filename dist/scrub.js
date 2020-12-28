@@ -19,11 +19,152 @@ var Costume = (function () {
     }
     return Costume;
 }());
-var SPRITE_READY_EVENT = 'sprite.ready';
-var SPRITE_COSTUME_READY_EVENT = 'sprite.costume_ready';
-var SPRITE_SOUND_READY_EVENT = 'sprite.sound_ready';
+var GAME_READY_EVENT = 'scrubjs.game.ready';
+var STAGE_READY_EVENT = 'scrubjs.stage.ready';
+var STAGE_BACKGROUND_READY_EVENT = 'scrubjs.stage.background_ready';
+var SPRITE_READY_EVENT = 'scrubjs.sprite.ready';
+var SPRITE_COSTUME_READY_EVENT = 'scrubjs.sprite.costume_ready';
+var SPRITE_SOUND_READY_EVENT = 'scrubjs.sprite.sound_ready';
+var Game = (function () {
+    function Game(width, height, canvasId) {
+        if (width === void 0) { width = null; }
+        if (height === void 0) { height = null; }
+        if (canvasId === void 0) { canvasId = null; }
+        this.debugMode = 'none';
+        this.debugBody = false;
+        this.displayErrors = false;
+        this.stages = [];
+        this.loadedStages = 0;
+        this.onReadyCallbacks = [];
+        this.onReadyPending = true;
+        this.id = Symbol();
+        this.keyboard = new Keyboard();
+        this.mouse = new Mouse();
+        if (canvasId) {
+            var element = document.getElementById(canvasId);
+            if (element instanceof HTMLCanvasElement) {
+                this.canvas = element;
+            }
+        }
+        else {
+            this.canvas = document.createElement('canvas');
+            document.body.appendChild(this.canvas);
+        }
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.styles = new Styles(this.canvas, width, height);
+        this.context = this.canvas.getContext('2d');
+        Registry.getInstance().set('game', this);
+        this.addListeners();
+    }
+    Game.prototype.addStage = function (stage) {
+        this.stages.push(stage);
+    };
+    Game.prototype.getLastStage = function () {
+        if (!this.stages.length) {
+            return null;
+        }
+        return this.stages[this.stages.length - 1];
+    };
+    Game.prototype.getActiveStage = function () {
+        if (this.activeStage) {
+            return this.activeStage;
+        }
+        return null;
+    };
+    Game.prototype.run = function (stage) {
+        if (stage === void 0) { stage = null; }
+        if (!stage && this.stages.length) {
+            stage = this.stages[0];
+        }
+        if (!stage) {
+            this.throwError('You need create Stage instance before run game.');
+        }
+        if (this.activeStage && this.activeStage.running) {
+            this.activeStage.stop();
+        }
+        this.activeStage = stage;
+        this.activeStage.run();
+    };
+    Game.prototype.isReady = function () {
+        return this.loadedStages == this.stages.length;
+    };
+    Game.prototype.onReady = function (callback) {
+        this.onReadyCallbacks.push(callback);
+    };
+    Game.prototype.stop = function () {
+        if (this.activeStage && this.activeStage.running) {
+            this.activeStage.stop();
+        }
+    };
+    Object.defineProperty(Game.prototype, "width", {
+        get: function () {
+            return this.canvas.width;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Game.prototype, "height", {
+        get: function () {
+            return this.canvas.height;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Game.prototype.keyPressed = function (char) {
+        return this.keyboard.keyPressed(char);
+    };
+    Game.prototype.keyDown = function (char, callback) {
+        this.keyboard.keyDown(char, callback);
+    };
+    Game.prototype.keyUp = function (char, callback) {
+        this.keyboard.keyUp(char, callback);
+    };
+    Game.prototype.mouseDown = function () {
+        return this.mouse.isDown;
+    };
+    Game.prototype.getMousePoint = function () {
+        return this.mouse.getPoint();
+    };
+    Game.prototype.getRandom = function (min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    };
+    Game.prototype.throwError = function (message) {
+        if (this.displayErrors) {
+            alert(message);
+        }
+        throw new Error(message);
+    };
+    Game.prototype.addListeners = function () {
+        var _this = this;
+        document.addEventListener(STAGE_READY_EVENT, function (event) {
+            _this.loadedStages++;
+            _this.tryDoOnReady();
+        });
+    };
+    Game.prototype.tryDoOnReady = function () {
+        if (this.isReady() && this.onReadyPending) {
+            this.onReadyPending = false;
+            if (this.onReadyCallbacks.length) {
+                for (var _i = 0, _a = this.onReadyCallbacks; _i < _a.length; _i++) {
+                    var callback = _a[_i];
+                    callback();
+                }
+                this.onReadyCallbacks = [];
+            }
+            var event_1 = new CustomEvent(GAME_READY_EVENT, {
+                detail: {
+                    game: this
+                }
+            });
+            document.dispatchEvent(event_1);
+        }
+    };
+    return Game;
+}());
 var Sprite = (function () {
-    function Sprite(costumePaths, soundPaths) {
+    function Sprite(stage, costumePaths, soundPaths) {
+        if (stage === void 0) { stage = null; }
         if (costumePaths === void 0) { costumePaths = []; }
         if (soundPaths === void 0) { soundPaths = []; }
         this.name = 'No name';
@@ -37,22 +178,31 @@ var Sprite = (function () {
         this.sounds = [];
         this.soundNames = [];
         this.deleted = false;
-        this.stopped = false;
         this.phraseLiveTime = null;
         this._x = 0;
         this._y = 0;
         this._direction = 0;
         this._hidden = false;
+        this._stopped = true;
         this.loadedCostumes = 0;
         this.loadedSounds = 0;
-        if (!Registry.getInstance().has('stage')) {
-            throw new Error('You need create stage before sprite.');
+        this.onReadyCallbacks = [];
+        this.onReadyPending = true;
+        this.id = Symbol();
+        if (!Registry.getInstance().has('game')) {
+            this.game.throwError('You need create Game instance before Sprite instance.');
         }
-        this.objectSymbol = Symbol();
-        this.stage = Registry.getInstance().get('stage');
+        this.game = Registry.getInstance().get('game');
+        this.stage = stage;
+        if (!this.stage) {
+            this.stage = this.game.getLastStage();
+        }
+        if (!this.stage) {
+            this.game.throwError('You need create Stage instance before Sprite instance.');
+        }
         this.position = this.stage.addSprite(this);
-        this._x = this.stage.width / 2;
-        this._y = this.stage.height / 2;
+        this._x = this.game.width / 2;
+        this._y = this.game.height / 2;
         for (var _i = 0, costumePaths_1 = costumePaths; _i < costumePaths_1.length; _i++) {
             var costumePath = costumePaths_1[_i];
             this.addCostume(costumePath);
@@ -66,8 +216,8 @@ var Sprite = (function () {
     Sprite.prototype.isReady = function () {
         return this.loadedCostumes == this.costumes.length && this.loadedSounds == this.sounds.length;
     };
-    Sprite.prototype.onReady = function (onReadyCallback) {
-        this.onReadyCallback = onReadyCallback;
+    Sprite.prototype.onReady = function (callback) {
+        this.onReadyCallbacks.push(callback);
     };
     Sprite.prototype.addCostume = function (costumePath, name, x, y, width, height, paddingTop, paddingRight, paddingBottom, paddingLeft) {
         var _this = this;
@@ -93,7 +243,7 @@ var Sprite = (function () {
             _this.addCostumeByImage(costume, image, x, y, width, height, paddingTop, paddingRight, paddingBottom, paddingLeft);
         }, false);
         image.addEventListener('error', function () {
-            throw Error('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
+            _this.game.throwError('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
         });
     };
     Sprite.prototype.addCostumeByImage = function (costume, image, x, y, width, height, paddingTop, paddingRight, paddingBottom, paddingLeft) {
@@ -126,7 +276,7 @@ var Sprite = (function () {
         event = new CustomEvent(SPRITE_COSTUME_READY_EVENT, {
             detail: {
                 costume: costume,
-                objectSymbol: this.objectSymbol
+                spriteId: this.id
             }
         });
         document.dispatchEvent(event);
@@ -223,7 +373,7 @@ var Sprite = (function () {
             this.switchCostume(costumeIndex);
         }
         else {
-            throw new Error('Name ' + costumeName + 'not found.');
+            this.game.throwError('Name ' + costumeName + 'not found.');
         }
     };
     Sprite.prototype.nextCostume = function () {
@@ -251,7 +401,7 @@ var Sprite = (function () {
             event = new CustomEvent(SPRITE_SOUND_READY_EVENT, {
                 detail: {
                     sound: sound,
-                    objectSymbol: _this.objectSymbol
+                    spriteId: _this.id
                 }
             });
             document.dispatchEvent(event);
@@ -271,7 +421,7 @@ var Sprite = (function () {
             }
         }
         else {
-            throw new Error('Sound with index "' + soundIndex + '" not found.');
+            this.game.throwError('Sound with index "' + soundIndex + '" not found.');
         }
     };
     Sprite.prototype.pauseSound = function (soundIndex) {
@@ -280,7 +430,7 @@ var Sprite = (function () {
             sound.pause();
         }
         else {
-            throw new Error('Sound with index "' + soundIndex + '" not found.');
+            this.game.throwError('Sound with index "' + soundIndex + '" not found.');
         }
     };
     Sprite.prototype.playSoundByName = function (soundName, volume, currentTime) {
@@ -291,7 +441,7 @@ var Sprite = (function () {
             this.playSound(soundIndex, volume, currentTime);
         }
         else {
-            throw new Error('Name ' + soundName + 'not found.');
+            this.game.throwError('Name ' + soundName + 'not found.');
         }
     };
     Sprite.prototype.pauseSoundByName = function (soundName) {
@@ -300,7 +450,7 @@ var Sprite = (function () {
             this.pauseSound(soundIndex);
         }
         else {
-            throw new Error('Name ' + soundName + 'not found.');
+            this.game.throwError('Name ' + soundName + 'not found.');
         }
     };
     Sprite.prototype.move = function (steps) {
@@ -319,6 +469,8 @@ var Sprite = (function () {
         if (result === void 0) { result = null; }
         if (sprite.hidden ||
             this.hidden ||
+            sprite.stopped ||
+            this.stopped ||
             !(sprite.getBody() instanceof Body) ||
             !(this.body instanceof Body)) {
             return false;
@@ -411,13 +563,10 @@ var Sprite = (function () {
         if (!(this.body instanceof Body)) {
             return false;
         }
-        return this.body.collides(getMousePoint(), result);
+        return this.body.collides(this.game.getMousePoint(), result);
     };
     Sprite.prototype.pointForward = function (sprite) {
         this.direction = (Math.atan2(this.y - sprite.y, this.x - sprite.x) / Math.PI * 180) - 90;
-    };
-    Sprite.prototype.getDistanceTo = function (sprite) {
-        return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
     };
     Sprite.prototype.getDistanceToSprite = function (sprite) {
         return Math.sqrt((Math.abs(this.x - sprite.x)) + (Math.abs(this.y - sprite.y)));
@@ -450,11 +599,15 @@ var Sprite = (function () {
         }
         return null;
     };
-    Sprite.prototype.createClone = function () {
+    Sprite.prototype.createClone = function (stage) {
+        if (stage === void 0) { stage = null; }
         if (!this.isReady()) {
-            throw new Error('Sprite cannot be cloned because one is not ready.');
+            this.game.throwError('Sprite cannot be cloned because one is not ready.');
         }
-        var clone = new Sprite();
+        if (!stage) {
+            stage = this.stage;
+        }
+        var clone = new Sprite(stage);
         clone.x = this.x;
         clone.y = this.y;
         clone.direction = this.direction;
@@ -466,11 +619,7 @@ var Sprite = (function () {
         }
         clone.switchCostume(this.costumeIndex);
         clone.deleted = this.deleted;
-        clone.stopped = this.stopped;
         return clone;
-    };
-    Sprite.prototype.cloneSprite = function () {
-        return this.createClone();
     };
     Sprite.prototype.timeout = function (callback, timeout) {
         var _this = this;
@@ -481,7 +630,7 @@ var Sprite = (function () {
             requestAnimationFrame(function () { return callback(_this); });
         }, timeout);
     };
-    Sprite.prototype.interval = function (callback, timeout) {
+    Sprite.prototype.forever = function (callback, timeout) {
         var _this = this;
         if (timeout === void 0) { timeout = null; }
         if (this.deleted || this.stopped) {
@@ -493,30 +642,29 @@ var Sprite = (function () {
         }
         if (timeout) {
             setTimeout(function () {
-                requestAnimationFrame(function () { return _this.interval(callback, timeout); });
+                requestAnimationFrame(function () { return _this.forever(callback, timeout); });
             }, timeout);
         }
         else {
-            requestAnimationFrame(function () { return _this.interval(callback); });
+            requestAnimationFrame(function () { return _this.forever(callback); });
         }
-    };
-    Sprite.prototype.forever = function (callback, timeout) {
-        if (timeout === void 0) { timeout = null; }
-        this.interval(callback, timeout);
     };
     Sprite.prototype.delete = function () {
         if (this.deleted) {
             return;
         }
-        this.stage.deleteSprite(this);
+        this.stage.removeSprite(this);
         var props = Object.keys(this);
         for (var i = 0; i < props.length; i++) {
             delete this[props[i]];
         }
         this.deleted = true;
     };
+    Sprite.prototype.run = function () {
+        this._stopped = false;
+    };
     Sprite.prototype.stop = function () {
-        this.stopped = true;
+        this._stopped = true;
     };
     Sprite.prototype.getBody = function () {
         return this.body;
@@ -619,35 +767,48 @@ var Sprite = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(Sprite.prototype, "stopped", {
+        get: function () {
+            return this._stopped;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Sprite.prototype.addListeners = function () {
         var _this = this;
         document.addEventListener(SPRITE_COSTUME_READY_EVENT, function (event) {
-            if (_this.objectSymbol == event.detail.objectSymbol) {
+            if (_this.id == event.detail.spriteId) {
                 _this.loadedCostumes++;
-                _this.runOnReadyCallback();
+                _this.tryDoOnReady();
                 if (_this.loadedCostumes == _this.costumes.length && _this.costume === null) {
                     _this.switchCostume(0);
                 }
             }
         });
         document.addEventListener(SPRITE_SOUND_READY_EVENT, function (event) {
-            if (_this.objectSymbol == event.detail.objectSymbol) {
+            if (_this.id == event.detail.spriteId) {
                 _this.loadedSounds++;
-                _this.runOnReadyCallback();
+                _this.tryDoOnReady();
             }
         });
     };
-    Sprite.prototype.runOnReadyCallback = function () {
-        if (this.isReady()) {
-            var event_1 = new CustomEvent(SPRITE_READY_EVENT, {
+    Sprite.prototype.tryDoOnReady = function () {
+        if (this.isReady() && this.onReadyPending) {
+            this.onReadyPending = false;
+            if (this.onReadyCallbacks.length) {
+                for (var _i = 0, _a = this.onReadyCallbacks; _i < _a.length; _i++) {
+                    var callback = _a[_i];
+                    callback();
+                }
+                this.onReadyCallbacks = [];
+            }
+            var event_2 = new CustomEvent(SPRITE_READY_EVENT, {
                 detail: {
-                    sprite: this
+                    sprite: this,
+                    stageId: this.stage.id
                 }
             });
-            document.dispatchEvent(event_1);
-            if (this.onReadyCallback) {
-                this.onReadyCallback();
-            }
+            document.dispatchEvent(event_2);
         }
     };
     Sprite.prototype.removeBody = function () {
@@ -664,48 +825,37 @@ var Sprite = (function () {
     };
     return Sprite;
 }());
-var STAGE_READY_EVENT = 'stage.ready';
-var STAGE_BACKGROUND_READY_EVENT = 'stage.background_ready';
 var Stage = (function () {
-    function Stage(canvasId, width, height, background, padding) {
-        if (canvasId === void 0) { canvasId = null; }
-        if (width === void 0) { width = null; }
-        if (height === void 0) { height = null; }
+    function Stage(background, padding) {
         if (background === void 0) { background = null; }
         if (padding === void 0) { padding = 0; }
-        this.debugMode = 'none';
-        this.debugBody = false;
         this.background = null;
         this.backgroundIndex = null;
         this.backgrounds = [];
         this.sprites = [];
+        this.drawings = [];
         this.loadedSprites = 0;
         this.loadedBackgrounds = 0;
         this.pendingRun = false;
+        this.onReadyCallbacks = [];
+        this.onStartCallbacks = [];
+        this.onReadyPending = true;
         this._stopped = false;
         this._running = false;
-        this.objectSymbol = Symbol();
+        this.id = Symbol();
+        if (!Registry.getInstance().has('game')) {
+            this.game.throwError('You need create Game instance before Stage instance.');
+        }
+        this.game = Registry.getInstance().get('game');
         this.collisionSystem = new CollisionSystem();
-        if (canvasId) {
-            var element = document.getElementById(canvasId);
-            if (element instanceof HTMLCanvasElement) {
-                this.canvas = element;
-            }
-        }
-        else {
-            this.canvas = document.createElement('canvas');
-            document.body.appendChild(this.canvas);
-        }
-        this.canvas.width = width;
-        this.canvas.height = height;
-        this.styles = new Styles(this.canvas, width, height);
-        this.context = this.canvas.getContext('2d');
+        this.canvas = this.game.canvas;
+        this.context = this.game.context;
         if (background) {
             this.addBackground(background);
         }
         this.padding = padding;
-        Registry.getInstance().set('stage', this);
         this.addListeners();
+        this.game.addStage(this);
     }
     Object.defineProperty(Stage.prototype, "padding", {
         get: function () {
@@ -753,7 +903,7 @@ var Stage = (function () {
         this.sprites.push(sprite);
         return this.sprites.length - 1;
     };
-    Stage.prototype.deleteSprite = function (sprite) {
+    Stage.prototype.removeSprite = function (sprite) {
         this.sprites.splice(this.sprites.indexOf(sprite), 1);
     };
     Stage.prototype.addBackground = function (backgroundPath) {
@@ -765,13 +915,13 @@ var Stage = (function () {
             event = new CustomEvent(STAGE_BACKGROUND_READY_EVENT, {
                 detail: {
                     background: background,
-                    objectSymbol: _this.objectSymbol
+                    stageId: _this.id
                 }
             });
             document.dispatchEvent(event);
         });
         background.addEventListener('error', function () {
-            throw Error('Background image "' + backgroundPath + '" was not loaded. Check that the path is correct.');
+            _this.game.throwError('Background image "' + backgroundPath + '" was not loaded. Check that the path is correct.');
         });
     };
     Stage.prototype.switchBackground = function (backgroundIndex) {
@@ -827,16 +977,7 @@ var Stage = (function () {
         }
     };
     Stage.prototype.pen = function (callback) {
-        this.drawing = callback;
-    };
-    Stage.prototype.keyPressed = function (char) {
-        return keyPressed(char);
-    };
-    Stage.prototype.mouseDown = function () {
-        return mouseDown();
-    };
-    Stage.prototype.getRandom = function (min, max) {
-        return random(min, max);
+        this.drawings.push(callback);
     };
     Stage.prototype.render = function () {
         var _this = this;
@@ -848,11 +989,14 @@ var Stage = (function () {
         if (this.background) {
             this.context.drawImage(this.background, 0, 0, this.width, this.height);
         }
-        if (this.drawing) {
-            this.drawing(this.context);
+        if (this.drawings.length) {
+            for (var _i = 0, _a = this.drawings; _i < _a.length; _i++) {
+                var drawing = _a[_i];
+                drawing(this.context);
+            }
         }
         this.collisionSystem.update();
-        if (this.debugBody) {
+        if (this.game.debugBody) {
             this.collisionSystem.draw(this.context);
             this.context.stroke();
         }
@@ -860,7 +1004,7 @@ var Stage = (function () {
             if (sprite.hidden) {
                 return "continue";
             }
-            if (this_1.debugMode !== 'none') {
+            if (this_1.game.debugMode !== 'none') {
                 var fn = function () {
                     var x = sprite.x - (_this.context.measureText(sprite.name).width / 2);
                     var y = sprite.realY + sprite.height + 20;
@@ -877,12 +1021,12 @@ var Stage = (function () {
                     y += 20;
                     _this.context.fillText("costume: " + sprite.costumeNames[sprite.costumeIndex], x, y);
                 };
-                if (this_1.debugMode === 'hover') {
+                if (this_1.game.debugMode === 'hover') {
                     if (sprite.touchMouse()) {
                         fn();
                     }
                 }
-                if (this_1.debugMode === 'forever') {
+                if (this_1.game.debugMode === 'forever') {
                     fn();
                 }
             }
@@ -897,8 +1041,8 @@ var Stage = (function () {
             }
         };
         var this_1 = this;
-        for (var _i = 0, _a = this.sprites; _i < _a.length; _i++) {
-            var sprite = _a[_i];
+        for (var _b = 0, _c = this.sprites; _b < _c.length; _b++) {
+            var sprite = _c[_b];
             _loop_1(sprite);
         }
     };
@@ -911,7 +1055,7 @@ var Stage = (function () {
             requestAnimationFrame(function () { return callback(_this); });
         }, timeout);
     };
-    Stage.prototype.interval = function (callback, timeout) {
+    Stage.prototype.forever = function (callback, timeout) {
         var _this = this;
         if (timeout === void 0) { timeout = null; }
         if (this._stopped) {
@@ -926,26 +1070,31 @@ var Stage = (function () {
         }
         if (timeout) {
             setTimeout(function () {
-                requestAnimationFrame(function () { return _this.interval(callback, timeout); });
+                requestAnimationFrame(function () { return _this.forever(callback, timeout); });
             }, timeout);
         }
         else {
-            requestAnimationFrame(function () { return _this.interval(callback); });
+            requestAnimationFrame(function () { return _this.forever(callback); });
         }
-    };
-    Stage.prototype.forever = function (callback, timeout) {
-        if (timeout === void 0) { timeout = null; }
-        this.interval(callback, timeout);
     };
     Stage.prototype.isReady = function () {
         return this.loadedSprites == this.sprites.length && this.loadedBackgrounds == this.backgrounds.length;
     };
     Stage.prototype.run = function () {
+        this._running = true;
+        this._stopped = false;
+        for (var _i = 0, _a = this.sprites; _i < _a.length; _i++) {
+            var sprite = _a[_i];
+            sprite.run();
+        }
         this.pendingRun = true;
-        this.doRun();
+        this.tryDoRun();
     };
-    Stage.prototype.onReady = function (onReadyCallback) {
-        this.onReadyCallback = onReadyCallback;
+    Stage.prototype.onStart = function (onStartCallback) {
+        this.onStartCallbacks.push(onStartCallback);
+    };
+    Stage.prototype.onReady = function (callback) {
+        this.onReadyCallbacks.push(callback);
     };
     Stage.prototype.stop = function () {
         this._running = false;
@@ -970,593 +1119,65 @@ var Stage = (function () {
     Stage.prototype.addListeners = function () {
         var _this = this;
         document.addEventListener(SPRITE_READY_EVENT, function (event) {
-            _this.loadedSprites++;
-            _this.runOnReadyCallback();
-            _this.doRun();
+            if (_this.id == event.detail.stageId) {
+                _this.loadedSprites++;
+                _this.tryDoOnReady();
+                _this.tryDoRun();
+            }
         });
         document.addEventListener(STAGE_BACKGROUND_READY_EVENT, function (event) {
-            if (_this.objectSymbol == event.detail.objectSymbol) {
+            if (_this.id == event.detail.stageId) {
                 _this.loadedBackgrounds++;
-                _this.runOnReadyCallback();
-                _this.doRun();
+                _this.tryDoOnReady();
+                _this.tryDoRun();
                 if (_this.loadedBackgrounds == _this.backgrounds.length && _this.backgroundIndex === null) {
                     _this.switchBackground(0);
                 }
             }
         });
     };
-    Stage.prototype.runOnReadyCallback = function () {
-        if (this.isReady()) {
-            var event_2 = new CustomEvent(STAGE_READY_EVENT, {
+    Stage.prototype.tryDoOnReady = function () {
+        if (this.isReady() && this.onReadyPending) {
+            this.onReadyPending = false;
+            if (this.onReadyCallbacks.length) {
+                for (var _i = 0, _a = this.onReadyCallbacks; _i < _a.length; _i++) {
+                    var callback = _a[_i];
+                    callback();
+                }
+                this.onReadyCallbacks = [];
+            }
+            var event_3 = new CustomEvent(STAGE_READY_EVENT, {
                 detail: {
                     stage: this
                 }
             });
-            document.dispatchEvent(event_2);
-            if (this.onReadyCallback) {
-                this.onReadyCallback();
-            }
+            document.dispatchEvent(event_3);
         }
     };
-    Stage.prototype.doRun = function () {
+    Stage.prototype.doOnStart = function () {
+        var _loop_2 = function (callback) {
+            setTimeout(function () {
+                callback();
+            });
+        };
+        for (var _i = 0, _a = this.onStartCallbacks; _i < _a.length; _i++) {
+            var callback = _a[_i];
+            _loop_2(callback);
+        }
+    };
+    Stage.prototype.tryDoRun = function () {
         var _this = this;
         if (this.pendingRun && this.isReady()) {
             this._running = true;
             this.pendingRun = false;
-            this.interval(function () {
+            this.doOnStart();
+            this.forever(function () {
                 _this.render();
             });
         }
     };
     return Stage;
 }());
-var Keyboard = (function () {
-    function Keyboard() {
-        var _this = this;
-        this.keys = {};
-        this.keyboardMap = [
-            "",
-            "",
-            "",
-            "CANCEL",
-            "",
-            "",
-            "HELP",
-            "",
-            "BACK_SPACE",
-            "TAB",
-            "",
-            "",
-            "CLEAR",
-            "ENTER",
-            "ENTER_SPECIAL",
-            "",
-            "SHIFT",
-            "CONTROL",
-            "ALT",
-            "PAUSE",
-            "CAPS_LOCK",
-            "KANA",
-            "EISU",
-            "JUNJA",
-            "FINAL",
-            "HANJA",
-            "",
-            "ESCAPE",
-            "CONVERT",
-            "NONCONVERT",
-            "ACCEPT",
-            "MODECHANGE",
-            "SPACE",
-            "PAGE_UP",
-            "PAGE_DOWN",
-            "END",
-            "HOME",
-            "LEFT",
-            "UP",
-            "RIGHT",
-            "DOWN",
-            "SELECT",
-            "PRINT",
-            "EXECUTE",
-            "PRINTSCREEN",
-            "INSERT",
-            "DELETE",
-            "",
-            "0",
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-            "7",
-            "8",
-            "9",
-            "COLON",
-            "SEMICOLON",
-            "LESS_THAN",
-            "EQUALS",
-            "GREATER_THAN",
-            "QUESTION_MARK",
-            "AT",
-            "A",
-            "B",
-            "C",
-            "D",
-            "E",
-            "F",
-            "G",
-            "H",
-            "I",
-            "J",
-            "K",
-            "L",
-            "M",
-            "N",
-            "O",
-            "P",
-            "Q",
-            "R",
-            "S",
-            "T",
-            "U",
-            "V",
-            "W",
-            "X",
-            "Y",
-            "Z",
-            "OS_KEY",
-            "",
-            "CONTEXT_MENU",
-            "",
-            "SLEEP",
-            "NUMPAD0",
-            "NUMPAD1",
-            "NUMPAD2",
-            "NUMPAD3",
-            "NUMPAD4",
-            "NUMPAD5",
-            "NUMPAD6",
-            "NUMPAD7",
-            "NUMPAD8",
-            "NUMPAD9",
-            "MULTIPLY",
-            "ADD",
-            "SEPARATOR",
-            "SUBTRACT",
-            "DECIMAL",
-            "DIVIDE",
-            "F1",
-            "F2",
-            "F3",
-            "F4",
-            "F5",
-            "F6",
-            "F7",
-            "F8",
-            "F9",
-            "F10",
-            "F11",
-            "F12",
-            "F13",
-            "F14",
-            "F15",
-            "F16",
-            "F17",
-            "F18",
-            "F19",
-            "F20",
-            "F21",
-            "F22",
-            "F23",
-            "F24",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "NUM_LOCK",
-            "SCROLL_LOCK",
-            "WIN_OEM_FJ_JISHO",
-            "WIN_OEM_FJ_MASSHOU",
-            "WIN_OEM_FJ_TOUROKU",
-            "WIN_OEM_FJ_LOYA",
-            "WIN_OEM_FJ_ROYA",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "CIRCUMFLEX",
-            "EXCLAMATION",
-            "DOUBLE_QUOTE",
-            "HASH",
-            "DOLLAR",
-            "PERCENT",
-            "AMPERSAND",
-            "UNDERSCORE",
-            "OPEN_PAREN",
-            "CLOSE_PAREN",
-            "ASTERISK",
-            "PLUS",
-            "PIPE",
-            "HYPHEN_MINUS",
-            "OPEN_CURLY_BRACKET",
-            "CLOSE_CURLY_BRACKET",
-            "TILDE",
-            "",
-            "",
-            "",
-            "",
-            "VOLUME_MUTE",
-            "VOLUME_DOWN",
-            "VOLUME_UP",
-            "",
-            "",
-            "SEMICOLON",
-            "EQUALS",
-            "COMMA",
-            "MINUS",
-            "PERIOD",
-            "SLASH",
-            "BACK_QUOTE",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "OPEN_BRACKET",
-            "BACK_SLASH",
-            "CLOSE_BRACKET",
-            "QUOTE",
-            "",
-            "META",
-            "ALTGR",
-            "",
-            "WIN_ICO_HELP",
-            "WIN_ICO_00",
-            "",
-            "WIN_ICO_CLEAR",
-            "",
-            "",
-            "WIN_OEM_RESET",
-            "WIN_OEM_JUMP",
-            "WIN_OEM_PA1",
-            "WIN_OEM_PA2",
-            "WIN_OEM_PA3",
-            "WIN_OEM_WSCTRL",
-            "WIN_OEM_CUSEL",
-            "WIN_OEM_ATTN",
-            "WIN_OEM_FINISH",
-            "WIN_OEM_COPY",
-            "WIN_OEM_AUTO",
-            "WIN_OEM_ENLW",
-            "WIN_OEM_BACKTAB",
-            "ATTN",
-            "CRSEL",
-            "EXSEL",
-            "EREOF",
-            "PLAY",
-            "ZOOM",
-            "",
-            "PA1",
-            "WIN_OEM_CLEAR",
-            ""
-        ];
-        document.addEventListener('keydown', function (event) {
-            var char = _this.keyboardMap[event.keyCode];
-            _this.keys[char] = true;
-        });
-        document.addEventListener('keyup', function (event) {
-            var char = _this.keyboardMap[event.keyCode];
-            delete _this.keys[char];
-        });
-    }
-    Keyboard.prototype.keyPressed = function (char) {
-        return this.keys[char.toUpperCase()] !== undefined;
-    };
-    Keyboard.prototype.keyDown = function (char, callback) {
-        var _this = this;
-        document.addEventListener('keydown', function (event) {
-            var pressedChar = _this.keyboardMap[event.keyCode];
-            if (char.toUpperCase() == pressedChar) {
-                callback(event);
-            }
-        });
-    };
-    Keyboard.prototype.keyUp = function (char, callback) {
-        var _this = this;
-        document.addEventListener('keyup', function (event) {
-            var pressedChar = _this.keyboardMap[event.keyCode];
-            if (char.toUpperCase() == pressedChar) {
-                callback(event);
-            }
-        });
-    };
-    return Keyboard;
-}());
-var Mouse = (function () {
-    function Mouse() {
-        var _this = this;
-        this.x = 0;
-        this.y = 0;
-        this.isDown = false;
-        document.addEventListener('mousedown', function () {
-            _this.isDown = true;
-        });
-        document.addEventListener('mouseup', function () {
-            _this.isDown = false;
-        });
-        document.addEventListener('mousemove', function (e) {
-            _this.x = e.clientX;
-            _this.y = e.clientY;
-        });
-        this.point = new Point(this.x, this.y);
-    }
-    Mouse.prototype.getPoint = function () {
-        this.point.x = this.x;
-        this.point.y = this.y;
-        return this.point;
-    };
-    return Mouse;
-}());
-var Body = (function () {
-    function Body(x, y, padding) {
-        if (x === void 0) { x = 0; }
-        if (y === void 0) { y = 0; }
-        if (padding === void 0) { padding = 0; }
-        this._circle = false;
-        this._polygon = false;
-        this._point = false;
-        this._bvh = null;
-        this._bvh_parent = null;
-        this._bvh_branch = false;
-        this._bvh_min_x = 0;
-        this._bvh_min_y = 0;
-        this._bvh_max_x = 0;
-        this._bvh_max_y = 0;
-        this.x = x;
-        this.y = y;
-        this.padding = padding;
-        this._bvh_padding = padding;
-    }
-    Body.prototype.collides = function (target, result, aabb) {
-        if (result === void 0) { result = null; }
-        if (aabb === void 0) { aabb = true; }
-        return SAT(this, target, result, aabb);
-    };
-    Body.prototype.potentials = function () {
-        var bvh = this._bvh;
-        if (bvh === null) {
-            throw new Error('Body does not belong to a collision system');
-        }
-        return bvh.potentials(this);
-    };
-    Body.prototype.remove = function () {
-        var bvh = this._bvh;
-        if (bvh) {
-            bvh.remove(this, false);
-        }
-    };
-    Body.prototype.createResult = function () {
-        return new CollisionResult();
-    };
-    Body.createResult = function () {
-        return new CollisionResult();
-    };
-    return Body;
-}());
-var Polygon = (function (_super) {
-    __extends(Polygon, _super);
-    function Polygon(x, y, points, angle, scale_x, scale_y, padding) {
-        if (x === void 0) { x = 0; }
-        if (y === void 0) { y = 0; }
-        if (points === void 0) { points = []; }
-        if (angle === void 0) { angle = 0; }
-        if (scale_x === void 0) { scale_x = 1; }
-        if (scale_y === void 0) { scale_y = 1; }
-        if (padding === void 0) { padding = 0; }
-        var _this = _super.call(this, x, y, padding) || this;
-        _this._min_x = 0;
-        _this._min_y = 0;
-        _this._max_x = 0;
-        _this._max_y = 0;
-        _this._points = null;
-        _this._coords = null;
-        _this._edges = null;
-        _this._normals = null;
-        _this._dirty_coords = true;
-        _this._dirty_normals = true;
-        _this.angle = angle;
-        _this.scale_x = scale_x;
-        _this.scale_y = scale_y;
-        _this._polygon = true;
-        _this._x = x;
-        _this._y = y;
-        _this._angle = angle;
-        _this._scale_x = scale_x;
-        _this._scale_y = scale_y;
-        Polygon.prototype.setPoints.call(_this, points);
-        return _this;
-    }
-    Polygon.prototype.draw = function (context) {
-        if (this._dirty_coords ||
-            this.x !== this._x ||
-            this.y !== this._y ||
-            this.angle !== this._angle ||
-            this.scale_x !== this._scale_x ||
-            this.scale_y !== this._scale_y) {
-            this._calculateCoords();
-        }
-        var coords = this._coords;
-        if (coords.length === 2) {
-            context.moveTo(coords[0], coords[1]);
-            context.arc(coords[0], coords[1], 1, 0, Math.PI * 2);
-        }
-        else {
-            context.moveTo(coords[0], coords[1]);
-            for (var i = 2; i < coords.length; i += 2) {
-                context.lineTo(coords[i], coords[i + 1]);
-            }
-            if (coords.length > 4) {
-                context.lineTo(coords[0], coords[1]);
-            }
-        }
-    };
-    Polygon.prototype.setPoints = function (new_points) {
-        var count = new_points.length;
-        this._points = new Float64Array(count * 2);
-        this._coords = new Float64Array(count * 2);
-        this._edges = new Float64Array(count * 2);
-        this._normals = new Float64Array(count * 2);
-        var points = this._points;
-        for (var i = 0, ix = 0, iy = 1; i < count; ++i, ix += 2, iy += 2) {
-            var new_point = new_points[i];
-            points[ix] = new_point[0];
-            points[iy] = new_point[1];
-        }
-        this._dirty_coords = true;
-    };
-    Polygon.prototype._calculateCoords = function () {
-        var x = this.x;
-        var y = this.y;
-        var angle = this.angle;
-        var scale_x = this.scale_x;
-        var scale_y = this.scale_y;
-        var points = this._points;
-        var coords = this._coords;
-        var count = points.length;
-        var min_x;
-        var max_x;
-        var min_y;
-        var max_y;
-        for (var ix = 0, iy = 1; ix < count; ix += 2, iy += 2) {
-            var coord_x = points[ix] * scale_x;
-            var coord_y = points[iy] * scale_y;
-            if (angle) {
-                var cos = Math.cos(angle);
-                var sin = Math.sin(angle);
-                var tmp_x = coord_x;
-                var tmp_y = coord_y;
-                coord_x = tmp_x * cos - tmp_y * sin;
-                coord_y = tmp_x * sin + tmp_y * cos;
-            }
-            coord_x += x;
-            coord_y += y;
-            coords[ix] = coord_x;
-            coords[iy] = coord_y;
-            if (ix === 0) {
-                min_x = max_x = coord_x;
-                min_y = max_y = coord_y;
-            }
-            else {
-                if (coord_x < min_x) {
-                    min_x = coord_x;
-                }
-                else if (coord_x > max_x) {
-                    max_x = coord_x;
-                }
-                if (coord_y < min_y) {
-                    min_y = coord_y;
-                }
-                else if (coord_y > max_y) {
-                    max_y = coord_y;
-                }
-            }
-        }
-        this._x = x;
-        this._y = y;
-        this._angle = angle;
-        this._scale_x = scale_x;
-        this._scale_y = scale_y;
-        this._min_x = min_x;
-        this._min_y = min_y;
-        this._max_x = max_x;
-        this._max_y = max_y;
-        this._dirty_coords = false;
-        this._dirty_normals = true;
-    };
-    Polygon.prototype._calculateNormals = function () {
-        var coords = this._coords;
-        var edges = this._edges;
-        var normals = this._normals;
-        var count = coords.length;
-        for (var ix = 0, iy = 1; ix < count; ix += 2, iy += 2) {
-            var next = ix + 2 < count ? ix + 2 : 0;
-            var x = coords[next] - coords[ix];
-            var y = coords[next + 1] - coords[iy];
-            var length_1 = x || y ? Math.sqrt(x * x + y * y) : 0;
-            edges[ix] = x;
-            edges[iy] = y;
-            normals[ix] = length_1 ? y / length_1 : 0;
-            normals[iy] = length_1 ? -x / length_1 : 0;
-        }
-        this._dirty_normals = false;
-    };
-    return Polygon;
-}(Body));
-var Point = (function (_super) {
-    __extends(Point, _super);
-    function Point(x, y, padding) {
-        if (x === void 0) { x = 0; }
-        if (y === void 0) { y = 0; }
-        if (padding === void 0) { padding = 0; }
-        var _this = _super.call(this, x, y, [[0, 0]], 0, 1, 1, padding) || this;
-        _this._point = true;
-        return _this;
-    }
-    return Point;
-}(Polygon));
-Point.prototype.setPoints = undefined;
-var keyboard = new Keyboard();
-var mouse = new Mouse();
-function keyPressed(char) {
-    return keyboard.keyPressed(char);
-}
-function keyDown(char, callback) {
-    keyboard.keyDown(char, callback);
-}
-function keyUp(char, callback) {
-    keyboard.keyUp(char, callback);
-}
-function mouseDown() {
-    return mouse.isDown;
-}
-function getMousePoint() {
-    return mouse.getPoint();
-}
-function random(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-}
 var BVH = (function () {
     function BVH() {
         this._hierarchy = null;
@@ -1884,6 +1505,52 @@ var BVHBranch = (function () {
     };
     return BVHBranch;
 }());
+var Body = (function () {
+    function Body(x, y, padding) {
+        if (x === void 0) { x = 0; }
+        if (y === void 0) { y = 0; }
+        if (padding === void 0) { padding = 0; }
+        this._circle = false;
+        this._polygon = false;
+        this._point = false;
+        this._bvh = null;
+        this._bvh_parent = null;
+        this._bvh_branch = false;
+        this._bvh_min_x = 0;
+        this._bvh_min_y = 0;
+        this._bvh_max_x = 0;
+        this._bvh_max_y = 0;
+        this.x = x;
+        this.y = y;
+        this.padding = padding;
+        this._bvh_padding = padding;
+    }
+    Body.prototype.collides = function (target, result, aabb) {
+        if (result === void 0) { result = null; }
+        if (aabb === void 0) { aabb = true; }
+        return SAT(this, target, result, aabb);
+    };
+    Body.prototype.potentials = function () {
+        var bvh = this._bvh;
+        if (bvh === null) {
+            throw new Error('Body does not belong to a collision system');
+        }
+        return bvh.potentials(this);
+    };
+    Body.prototype.remove = function () {
+        var bvh = this._bvh;
+        if (bvh) {
+            bvh.remove(this, false);
+        }
+    };
+    Body.prototype.createResult = function () {
+        return new CollisionResult();
+    };
+    Body.createResult = function () {
+        return new CollisionResult();
+    };
+    return Body;
+}());
 var Circle = (function (_super) {
     __extends(Circle, _super);
     function Circle(x, y, radius, scale, padding) {
@@ -2001,6 +1668,168 @@ var CollisionSystem = (function () {
     };
     return CollisionSystem;
 }());
+var Polygon = (function (_super) {
+    __extends(Polygon, _super);
+    function Polygon(x, y, points, angle, scale_x, scale_y, padding) {
+        if (x === void 0) { x = 0; }
+        if (y === void 0) { y = 0; }
+        if (points === void 0) { points = []; }
+        if (angle === void 0) { angle = 0; }
+        if (scale_x === void 0) { scale_x = 1; }
+        if (scale_y === void 0) { scale_y = 1; }
+        if (padding === void 0) { padding = 0; }
+        var _this = _super.call(this, x, y, padding) || this;
+        _this._min_x = 0;
+        _this._min_y = 0;
+        _this._max_x = 0;
+        _this._max_y = 0;
+        _this._points = null;
+        _this._coords = null;
+        _this._edges = null;
+        _this._normals = null;
+        _this._dirty_coords = true;
+        _this._dirty_normals = true;
+        _this.angle = angle;
+        _this.scale_x = scale_x;
+        _this.scale_y = scale_y;
+        _this._polygon = true;
+        _this._x = x;
+        _this._y = y;
+        _this._angle = angle;
+        _this._scale_x = scale_x;
+        _this._scale_y = scale_y;
+        Polygon.prototype.setPoints.call(_this, points);
+        return _this;
+    }
+    Polygon.prototype.draw = function (context) {
+        if (this._dirty_coords ||
+            this.x !== this._x ||
+            this.y !== this._y ||
+            this.angle !== this._angle ||
+            this.scale_x !== this._scale_x ||
+            this.scale_y !== this._scale_y) {
+            this._calculateCoords();
+        }
+        var coords = this._coords;
+        if (coords.length === 2) {
+            context.moveTo(coords[0], coords[1]);
+            context.arc(coords[0], coords[1], 1, 0, Math.PI * 2);
+        }
+        else {
+            context.moveTo(coords[0], coords[1]);
+            for (var i = 2; i < coords.length; i += 2) {
+                context.lineTo(coords[i], coords[i + 1]);
+            }
+            if (coords.length > 4) {
+                context.lineTo(coords[0], coords[1]);
+            }
+        }
+    };
+    Polygon.prototype.setPoints = function (new_points) {
+        var count = new_points.length;
+        this._points = new Float64Array(count * 2);
+        this._coords = new Float64Array(count * 2);
+        this._edges = new Float64Array(count * 2);
+        this._normals = new Float64Array(count * 2);
+        var points = this._points;
+        for (var i = 0, ix = 0, iy = 1; i < count; ++i, ix += 2, iy += 2) {
+            var new_point = new_points[i];
+            points[ix] = new_point[0];
+            points[iy] = new_point[1];
+        }
+        this._dirty_coords = true;
+    };
+    Polygon.prototype._calculateCoords = function () {
+        var x = this.x;
+        var y = this.y;
+        var angle = this.angle;
+        var scale_x = this.scale_x;
+        var scale_y = this.scale_y;
+        var points = this._points;
+        var coords = this._coords;
+        var count = points.length;
+        var min_x;
+        var max_x;
+        var min_y;
+        var max_y;
+        for (var ix = 0, iy = 1; ix < count; ix += 2, iy += 2) {
+            var coord_x = points[ix] * scale_x;
+            var coord_y = points[iy] * scale_y;
+            if (angle) {
+                var cos = Math.cos(angle);
+                var sin = Math.sin(angle);
+                var tmp_x = coord_x;
+                var tmp_y = coord_y;
+                coord_x = tmp_x * cos - tmp_y * sin;
+                coord_y = tmp_x * sin + tmp_y * cos;
+            }
+            coord_x += x;
+            coord_y += y;
+            coords[ix] = coord_x;
+            coords[iy] = coord_y;
+            if (ix === 0) {
+                min_x = max_x = coord_x;
+                min_y = max_y = coord_y;
+            }
+            else {
+                if (coord_x < min_x) {
+                    min_x = coord_x;
+                }
+                else if (coord_x > max_x) {
+                    max_x = coord_x;
+                }
+                if (coord_y < min_y) {
+                    min_y = coord_y;
+                }
+                else if (coord_y > max_y) {
+                    max_y = coord_y;
+                }
+            }
+        }
+        this._x = x;
+        this._y = y;
+        this._angle = angle;
+        this._scale_x = scale_x;
+        this._scale_y = scale_y;
+        this._min_x = min_x;
+        this._min_y = min_y;
+        this._max_x = max_x;
+        this._max_y = max_y;
+        this._dirty_coords = false;
+        this._dirty_normals = true;
+    };
+    Polygon.prototype._calculateNormals = function () {
+        var coords = this._coords;
+        var edges = this._edges;
+        var normals = this._normals;
+        var count = coords.length;
+        for (var ix = 0, iy = 1; ix < count; ix += 2, iy += 2) {
+            var next = ix + 2 < count ? ix + 2 : 0;
+            var x = coords[next] - coords[ix];
+            var y = coords[next + 1] - coords[iy];
+            var length_1 = x || y ? Math.sqrt(x * x + y * y) : 0;
+            edges[ix] = x;
+            edges[iy] = y;
+            normals[ix] = length_1 ? y / length_1 : 0;
+            normals[iy] = length_1 ? -x / length_1 : 0;
+        }
+        this._dirty_normals = false;
+    };
+    return Polygon;
+}(Body));
+var Point = (function (_super) {
+    __extends(Point, _super);
+    function Point(x, y, padding) {
+        if (x === void 0) { x = 0; }
+        if (y === void 0) { y = 0; }
+        if (padding === void 0) { padding = 0; }
+        var _this = _super.call(this, x, y, [[0, 0]], 0, 1, 1, padding) || this;
+        _this._point = true;
+        return _this;
+    }
+    return Point;
+}(Polygon));
+Point.prototype.setPoints = undefined;
 function SAT(a, b, result, aabb) {
     if (result === void 0) { result = null; }
     if (aabb === void 0) { aabb = true; }
@@ -2303,6 +2132,325 @@ function separatingAxis(a_coords, b_coords, x, y, result) {
     }
     return false;
 }
+var Keyboard = (function () {
+    function Keyboard() {
+        var _this = this;
+        this.keys = {};
+        this.keyboardMap = [
+            "",
+            "",
+            "",
+            "CANCEL",
+            "",
+            "",
+            "HELP",
+            "",
+            "BACK_SPACE",
+            "TAB",
+            "",
+            "",
+            "CLEAR",
+            "ENTER",
+            "ENTER_SPECIAL",
+            "",
+            "SHIFT",
+            "CONTROL",
+            "ALT",
+            "PAUSE",
+            "CAPS_LOCK",
+            "KANA",
+            "EISU",
+            "JUNJA",
+            "FINAL",
+            "HANJA",
+            "",
+            "ESCAPE",
+            "CONVERT",
+            "NONCONVERT",
+            "ACCEPT",
+            "MODECHANGE",
+            "SPACE",
+            "PAGE_UP",
+            "PAGE_DOWN",
+            "END",
+            "HOME",
+            "LEFT",
+            "UP",
+            "RIGHT",
+            "DOWN",
+            "SELECT",
+            "PRINT",
+            "EXECUTE",
+            "PRINTSCREEN",
+            "INSERT",
+            "DELETE",
+            "",
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "COLON",
+            "SEMICOLON",
+            "LESS_THAN",
+            "EQUALS",
+            "GREATER_THAN",
+            "QUESTION_MARK",
+            "AT",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G",
+            "H",
+            "I",
+            "J",
+            "K",
+            "L",
+            "M",
+            "N",
+            "O",
+            "P",
+            "Q",
+            "R",
+            "S",
+            "T",
+            "U",
+            "V",
+            "W",
+            "X",
+            "Y",
+            "Z",
+            "OS_KEY",
+            "",
+            "CONTEXT_MENU",
+            "",
+            "SLEEP",
+            "NUMPAD0",
+            "NUMPAD1",
+            "NUMPAD2",
+            "NUMPAD3",
+            "NUMPAD4",
+            "NUMPAD5",
+            "NUMPAD6",
+            "NUMPAD7",
+            "NUMPAD8",
+            "NUMPAD9",
+            "MULTIPLY",
+            "ADD",
+            "SEPARATOR",
+            "SUBTRACT",
+            "DECIMAL",
+            "DIVIDE",
+            "F1",
+            "F2",
+            "F3",
+            "F4",
+            "F5",
+            "F6",
+            "F7",
+            "F8",
+            "F9",
+            "F10",
+            "F11",
+            "F12",
+            "F13",
+            "F14",
+            "F15",
+            "F16",
+            "F17",
+            "F18",
+            "F19",
+            "F20",
+            "F21",
+            "F22",
+            "F23",
+            "F24",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "NUM_LOCK",
+            "SCROLL_LOCK",
+            "WIN_OEM_FJ_JISHO",
+            "WIN_OEM_FJ_MASSHOU",
+            "WIN_OEM_FJ_TOUROKU",
+            "WIN_OEM_FJ_LOYA",
+            "WIN_OEM_FJ_ROYA",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "CIRCUMFLEX",
+            "EXCLAMATION",
+            "DOUBLE_QUOTE",
+            "HASH",
+            "DOLLAR",
+            "PERCENT",
+            "AMPERSAND",
+            "UNDERSCORE",
+            "OPEN_PAREN",
+            "CLOSE_PAREN",
+            "ASTERISK",
+            "PLUS",
+            "PIPE",
+            "HYPHEN_MINUS",
+            "OPEN_CURLY_BRACKET",
+            "CLOSE_CURLY_BRACKET",
+            "TILDE",
+            "",
+            "",
+            "",
+            "",
+            "VOLUME_MUTE",
+            "VOLUME_DOWN",
+            "VOLUME_UP",
+            "",
+            "",
+            "SEMICOLON",
+            "EQUALS",
+            "COMMA",
+            "MINUS",
+            "PERIOD",
+            "SLASH",
+            "BACK_QUOTE",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "OPEN_BRACKET",
+            "BACK_SLASH",
+            "CLOSE_BRACKET",
+            "QUOTE",
+            "",
+            "META",
+            "ALTGR",
+            "",
+            "WIN_ICO_HELP",
+            "WIN_ICO_00",
+            "",
+            "WIN_ICO_CLEAR",
+            "",
+            "",
+            "WIN_OEM_RESET",
+            "WIN_OEM_JUMP",
+            "WIN_OEM_PA1",
+            "WIN_OEM_PA2",
+            "WIN_OEM_PA3",
+            "WIN_OEM_WSCTRL",
+            "WIN_OEM_CUSEL",
+            "WIN_OEM_ATTN",
+            "WIN_OEM_FINISH",
+            "WIN_OEM_COPY",
+            "WIN_OEM_AUTO",
+            "WIN_OEM_ENLW",
+            "WIN_OEM_BACKTAB",
+            "ATTN",
+            "CRSEL",
+            "EXSEL",
+            "EREOF",
+            "PLAY",
+            "ZOOM",
+            "",
+            "PA1",
+            "WIN_OEM_CLEAR",
+            ""
+        ];
+        document.addEventListener('keydown', function (event) {
+            var char = _this.keyboardMap[event.keyCode];
+            _this.keys[char] = true;
+        });
+        document.addEventListener('keyup', function (event) {
+            var char = _this.keyboardMap[event.keyCode];
+            delete _this.keys[char];
+        });
+    }
+    Keyboard.prototype.keyPressed = function (char) {
+        return this.keys[char.toUpperCase()] !== undefined;
+    };
+    Keyboard.prototype.keyDown = function (char, callback) {
+        var _this = this;
+        document.addEventListener('keydown', function (event) {
+            var pressedChar = _this.keyboardMap[event.keyCode];
+            if (char.toUpperCase() == pressedChar) {
+                callback(event);
+            }
+        });
+    };
+    Keyboard.prototype.keyUp = function (char, callback) {
+        var _this = this;
+        document.addEventListener('keyup', function (event) {
+            var pressedChar = _this.keyboardMap[event.keyCode];
+            if (char.toUpperCase() == pressedChar) {
+                callback(event);
+            }
+        });
+    };
+    return Keyboard;
+}());
+var Mouse = (function () {
+    function Mouse() {
+        var _this = this;
+        this.x = 0;
+        this.y = 0;
+        this.isDown = false;
+        document.addEventListener('mousedown', function () {
+            _this.isDown = true;
+        });
+        document.addEventListener('mouseup', function () {
+            _this.isDown = false;
+        });
+        document.addEventListener('mousemove', function (e) {
+            _this.x = e.clientX;
+            _this.y = e.clientY;
+        });
+        this.point = new Point(this.x, this.y);
+    }
+    Mouse.prototype.getPoint = function () {
+        this.point.x = this.x;
+        this.point.y = this.y;
+        return this.point;
+    };
+    return Mouse;
+}());
 var Registry = (function () {
     function Registry() {
         this.data = {};

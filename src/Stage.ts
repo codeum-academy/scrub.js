@@ -1,21 +1,16 @@
-const STAGE_READY_EVENT = 'stage.ready';
-const STAGE_BACKGROUND_READY_EVENT = 'stage.background_ready';
-
 class Stage {
+    id: Symbol;
     canvas: HTMLCanvasElement;
     context: CanvasRenderingContext2D;
     collisionSystem: CollisionSystem;
-    debugMode = 'none'; // none, hover, forever;
-    debugBody = false;
     backgroundColor;
 
-    private objectSymbol;
+    private game: Game;
     private background = null;
     private backgroundIndex = null;
     private backgrounds = [];
     private sprites = [];
-    private styles;
-    private drawing;
+    private drawings = [];
     private topEdge: Polygon;
     private rightEdge: Polygon;
     private bottomEdge: Polygon;
@@ -23,40 +18,33 @@ class Stage {
     private loadedSprites = 0;
     private loadedBackgrounds = 0;
     private pendingRun = false;
-    private onReadyCallback;
+    private onReadyCallbacks = [];
+    private onStartCallbacks = [];
+    private onReadyPending = true;
     private _stopped = false;
     private _padding: number;
     private _running = false;
 
-    constructor(canvasId: string = null, width: number = null, height: number = null, background: string = null, padding = 0) {
-        this.objectSymbol = Symbol();
-        this.collisionSystem = new CollisionSystem();
+    constructor(background: string = null, padding = 0) {
+        this.id = Symbol();
 
-        if (canvasId) {
-            const element = document.getElementById(canvasId);
-
-            if (element instanceof HTMLCanvasElement) {
-                this.canvas = element;
-            }
-
-        } else {
-            this.canvas = document.createElement('canvas');
-            document.body.appendChild(this.canvas);
+        if (!Registry.getInstance().has('game')) {
+            this.game.throwError('You need create Game instance before Stage instance.');
         }
+        this.game = Registry.getInstance().get('game');
 
-        this.canvas.width  = width;
-        this.canvas.height = height;
-        this.styles = new Styles(this.canvas, width, height);
-        this.context = this.canvas.getContext('2d');
+        this.collisionSystem = new CollisionSystem();
+        this.canvas = this.game.canvas;
+        this.context = this.game.context;
 
         if (background) {
             this.addBackground(background);
         }
 
         this.padding = padding;
-        Registry.getInstance().set('stage', this);
-
         this.addListeners();
+
+        this.game.addStage(this);
     }
 
     set padding(padding: number) {
@@ -94,7 +82,7 @@ class Stage {
         return this.sprites.length - 1;
     }
 
-    deleteSprite(sprite: Sprite): void {
+    removeSprite(sprite: Sprite): void {
         this.sprites.splice(this.sprites.indexOf(sprite), 1);
     }
 
@@ -108,7 +96,7 @@ class Stage {
             event = new CustomEvent(STAGE_BACKGROUND_READY_EVENT, {
                 detail: {
                     background: background,
-                    objectSymbol: this.objectSymbol
+                    stageId: this.id
                 }
             });
 
@@ -116,7 +104,7 @@ class Stage {
         });
 
         background.addEventListener('error', () => {
-            throw Error('Background image "' + backgroundPath + '" was not loaded. Check that the path is correct.');
+            this.game.throwError('Background image "' + backgroundPath + '" was not loaded. Check that the path is correct.');
         });
     }
 
@@ -208,22 +196,7 @@ class Stage {
     }
 
     pen(callback): void {
-        this.drawing = callback;
-    }
-
-    // @deprecated
-    keyPressed(char: string): boolean {
-        return keyPressed(char);
-    }
-
-    // @deprecated
-    mouseDown(): boolean {
-        return mouseDown();
-    }
-
-    // @deprecated
-    getRandom(min: number, max: number): number {
-        return random(min, max);
+        this.drawings.push(callback);
     }
 
     render(): void {
@@ -238,13 +211,15 @@ class Stage {
             this.context.drawImage(this.background, 0, 0, this.width, this.height);
         }
 
-        if (this.drawing) {
-            this.drawing(this.context);
+        if (this.drawings.length) {
+            for (const drawing of this.drawings) {
+                drawing(this.context);
+            }
         }
 
         this.collisionSystem.update();
 
-        if (this.debugBody) {
+        if (this.game.debugBody) {
             this.collisionSystem.draw(this.context);
             this.context.stroke();
         }
@@ -254,7 +229,7 @@ class Stage {
                 continue;
             }
 
-            if (this.debugMode !== 'none') {
+            if (this.game.debugMode !== 'none') {
                 const fn = () => {
                     const x = sprite.x - (this.context.measureText(sprite.name).width / 2);
                     let y = sprite.realY + sprite.height + 20;
@@ -274,13 +249,13 @@ class Stage {
                     this.context.fillText("costume: " + sprite.costumeNames[sprite.costumeIndex], x, y);
                 };
 
-                if (this.debugMode === 'hover') {
+                if (this.game.debugMode === 'hover') {
                     if (sprite.touchMouse()) {
                         fn();
                     }
                 }
 
-                if (this.debugMode === 'forever') {
+                if (this.game.debugMode === 'forever') {
                     fn();
                 }
             }
@@ -308,7 +283,7 @@ class Stage {
         }, timeout);
     }
 
-    interval(callback, timeout = null): void {
+    forever(callback, timeout = null): void {
         if (this._stopped) {
             return;
         }
@@ -324,17 +299,12 @@ class Stage {
 
         if (timeout) {
             setTimeout(() => {
-                requestAnimationFrame(() => this.interval(callback, timeout));
+                requestAnimationFrame(() => this.forever(callback, timeout));
             }, timeout);
 
         } else {
-            requestAnimationFrame(() => this.interval(callback));
+            requestAnimationFrame(() => this.forever(callback));
         }
-    }
-
-    // @deprecated
-    forever(callback, timeout = null): void {
-        this.interval(callback, timeout);
     }
 
     isReady() {
@@ -342,12 +312,23 @@ class Stage {
     }
 
     run(): void {
+        this._running = true;
+        this._stopped = false;
+
+        for (const sprite of this.sprites) {
+            sprite.run();
+        }
+
         this.pendingRun = true;
-        this.doRun();
+        this.tryDoRun();
     }
 
-    onReady(onReadyCallback) {
-        this.onReadyCallback = onReadyCallback;
+    onStart(onStartCallback) {
+        this.onStartCallbacks.push(onStartCallback);
+    }
+
+    onReady(callback) {
+        this.onReadyCallbacks.push(callback);
     }
 
     stop(): void {
@@ -377,16 +358,18 @@ class Stage {
 
     private addListeners() {
         document.addEventListener(SPRITE_READY_EVENT, (event: CustomEvent) => {
-            this.loadedSprites++;
-            this.runOnReadyCallback();
-            this.doRun();
+            if (this.id == event.detail.stageId) {
+                this.loadedSprites++;
+                this.tryDoOnReady();
+                this.tryDoRun();
+            }
         });
 
         document.addEventListener(STAGE_BACKGROUND_READY_EVENT, (event: CustomEvent) => {
-            if (this.objectSymbol == event.detail.objectSymbol) {
+            if (this.id == event.detail.stageId) {
                 this.loadedBackgrounds++;
-                this.runOnReadyCallback();
-                this.doRun();
+                this.tryDoOnReady();
+                this.tryDoRun();
 
                 if (this.loadedBackgrounds == this.backgrounds.length && this.backgroundIndex === null) {
                     this.switchBackground(0);
@@ -395,27 +378,42 @@ class Stage {
         });
     }
 
-    private runOnReadyCallback() {
-        if (this.isReady()) {
+    private tryDoOnReady() {
+        if (this.isReady() && this.onReadyPending) {
+            this.onReadyPending = false;
+
+            if (this.onReadyCallbacks.length) {
+                for (const callback of this.onReadyCallbacks) {
+                    callback();
+                }
+                this.onReadyCallbacks = [];
+            }
+
             let event = new CustomEvent(STAGE_READY_EVENT, {
                 detail: {
                     stage: this
                 }
             });
             document.dispatchEvent(event);
-
-            if (this.onReadyCallback) {
-                this.onReadyCallback();
-            }
         }
     }
 
-    private doRun() {
+    private doOnStart() {
+        for (const callback of this.onStartCallbacks) {
+            setTimeout(() => {
+                callback();
+            });
+        }
+    }
+
+    private tryDoRun() {
         if (this.pendingRun && this.isReady()) {
             this._running = true;
             this.pendingRun = false;
 
-            this.interval(() => {
+            this.doOnStart();
+
+            this.forever(() => {
                 this.render();
             });
         }
