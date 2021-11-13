@@ -569,6 +569,7 @@ class Sprite {
         clone.switchCostume(this.costumeIndex);
 
         clone.deleted = this.deleted;
+        clone._stopped = this.stopped;
 
         return clone;
     }

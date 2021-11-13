@@ -619,6 +619,7 @@ var Sprite = (function () {
         }
         clone.switchCostume(this.costumeIndex);
         clone.deleted = this.deleted;
+        clone._stopped = this.stopped;
         return clone;
     };
     Sprite.prototype.timeout = function (callback, timeout) {
