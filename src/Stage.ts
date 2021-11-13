@@ -84,6 +84,9 @@ class Stage {
 
     removeSprite(sprite: Sprite): void {
         this.sprites.splice(this.sprites.indexOf(sprite), 1);
+        if (sprite.isReady()) {
+            this.loadedSprites--;
+        }
     }
 
     addBackground(backgroundPath: string): void {

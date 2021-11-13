@@ -909,6 +909,9 @@ var Stage = (function () {
     };
     Stage.prototype.removeSprite = function (sprite) {
         this.sprites.splice(this.sprites.indexOf(sprite), 1);
+        if (sprite.isReady()) {
+            this.loadedSprites--;
+        }
     };
     Stage.prototype.addBackground = function (backgroundPath) {
         var _this = this;
