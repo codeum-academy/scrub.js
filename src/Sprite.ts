@@ -593,9 +593,15 @@ class Sprite {
             return;
         }
 
-        const result = callback(this);
-        if (result === false) {
-            return;
+        if (this.isReady()) {
+            const result = callback(this);
+            if (result === false) {
+                return;
+            }
+
+            if (result > 0) {
+                timeout = result;
+            }
         }
 
         if (timeout) {

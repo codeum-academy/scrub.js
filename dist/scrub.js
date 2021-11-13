@@ -640,9 +640,14 @@ var Sprite = (function () {
         if (this.deleted || this.stopped) {
             return;
         }
-        var result = callback(this);
-        if (result === false) {
-            return;
+        if (this.isReady()) {
+            var result = callback(this);
+            if (result === false) {
+                return;
+            }
+            if (result > 0) {
+                timeout = result;
+            }
         }
         if (timeout) {
             setTimeout(function () {
@@ -1068,12 +1073,14 @@ var Stage = (function () {
         if (this._stopped) {
             return;
         }
-        var result = callback(this);
-        if (result === false) {
-            return;
-        }
-        if (result > 0) {
-            timeout = result;
+        if (this.isReady()) {
+            var result = callback(this);
+            if (result === false) {
+                return;
+            }
+            if (result > 0) {
+                timeout = result;
+            }
         }
         if (timeout) {
             setTimeout(function () {
