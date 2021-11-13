@@ -95,6 +95,10 @@ class Sprite {
         image.src = costumePath;
 
         image.addEventListener('load', () => {
+            if (this.deleted) {
+                return;
+            }
+
             this.addCostumeByImage(
                 costume,
                 image,

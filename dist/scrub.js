@@ -240,6 +240,9 @@ var Sprite = (function () {
         var image = new Image();
         image.src = costumePath;
         image.addEventListener('load', function () {
+            if (_this.deleted) {
+                return;
+            }
             _this.addCostumeByImage(costume, image, x, y, width, height, paddingTop, paddingRight, paddingBottom, paddingLeft);
         }, false);
         image.addEventListener('error', function () {
