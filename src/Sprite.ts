@@ -17,18 +17,18 @@ class Sprite {
     private deleted = false;
     private phrase;
     private phraseLiveTime = null;
-    public position; // remake to getter and setter
     private _x = 0;
     private _y = 0;
     private _direction = 0;
     private _hidden = false;
     private _stopped = true;
+    private _layer: number;
     private loadedCostumes = 0;
     private loadedSounds = 0;
     private onReadyCallbacks = [];
     private onReadyPending = true;
 
-    constructor(stage: Stage = null, costumePaths = [], soundPaths = []) {
+    constructor(stage: Stage = null, layer = 1, costumePaths = [], soundPaths = []) {
         this.id = Symbol();
 
         if (!Registry.getInstance().has('game')) {
@@ -45,7 +45,8 @@ class Sprite {
             this.game.throwError('You need create Stage instance before Sprite instance.');
         }
 
-        this.position = this.stage.addSprite(this);
+        this._layer = layer;
+        this.stage.addSprite(this);
 
         this._x = this.game.width / 2;
         this._y = this.game.height / 2;
@@ -302,10 +303,6 @@ class Sprite {
         this.switchCostume(nextCostume);
     }
 
-    changePosition(newPosition: number): void {
-        this.stage.changeSpritePosition(this, newPosition);
-    }
-
     addSound(soundPath, name: string = null): void {
         if (!name) {
             name = 'No name ' + this.sounds.length;
@@ -559,7 +556,7 @@ class Sprite {
             stage = this.stage;
         }
 
-        const clone = new Sprite(stage);
+        const clone = new Sprite(stage, this.layer);
 
         clone.x = this.x;
         clone.y = this.y;
@@ -645,6 +642,10 @@ class Sprite {
         return this.costume;
     }
 
+    getCostumeName(): string {
+        return this.costumeNames[this.costumeIndex];
+    }
+
     set direction (direction: number) {
         if ((direction * 0) !== 0) { // d is +/-Infinity or NaN
             return;
@@ -673,7 +674,7 @@ class Sprite {
         return this._direction;
     }
 
-    get width() {
+    get width(): number|null {
         if (this.costume) {
             return this.costume.width * this.size / 100;
         }
@@ -681,7 +682,7 @@ class Sprite {
         return null;
     }
 
-    get height(): number {
+    get height(): number|null {
         if (this.costume) {
             return this.costume.height * this.size / 100;
         }
@@ -735,12 +736,22 @@ class Sprite {
         // }
     }
 
-    get hidden() {
+    get hidden(): boolean {
         return this._hidden;
     }
 
-    get stopped() {
+    get stopped(): boolean {
         return this._stopped;
+    }
+
+    set layer(value: number) {
+        this.stage.removeSprite(this);
+        this._layer = value;
+        this.stage.addSprite(this);
+    }
+
+    get layer(): number {
+        return this._layer;
     }
 
     private addListeners() {

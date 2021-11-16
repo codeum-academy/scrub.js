@@ -9,12 +9,13 @@ class Stage {
     private background = null;
     private backgroundIndex = null;
     private backgrounds = [];
-    private sprites = [];
+    private layers = new Map<number, Sprite[]>();
     private drawings = [];
     private topEdge: Polygon;
     private rightEdge: Polygon;
     private bottomEdge: Polygon;
     private leftEdge: Polygon;
+    private addedSprites = 0;
     private loadedSprites = 0;
     private loadedBackgrounds = 0;
     private pendingRun = false;
@@ -76,17 +77,38 @@ class Stage {
         return this._stopped;
     }
 
-    addSprite(sprite: Sprite): number {
-        this.sprites.push(sprite);
+    addSprite(sprite: Sprite): void {
+        let sprites: Sprite[];
 
-        return this.sprites.length - 1;
+        if (this.layers.has(sprite.layer)) {
+            sprites = this.layers.get(sprite.layer);
+
+        } else {
+            sprites = [];
+            this.layers.set(sprite.layer, sprites);
+            this.layers = new Map([...this.layers.entries()].sort((a, b) => a[0] - b[0]));
+        }
+
+        sprites.push(sprite);
+        this.addedSprites++;
     }
 
     removeSprite(sprite: Sprite): void {
-        this.sprites.splice(this.sprites.indexOf(sprite), 1);
+        if (!this.layers.has(sprite.layer)) {
+            this.game.throwError('The layer "' + sprite.layer + '" not defined in the stage.');
+        }
+
+        const sprites = this.layers.get(sprite.layer);
+        sprites.splice(sprites.indexOf(sprite), 1);
+
+        if (!sprites.length) {
+            this.layers.delete(sprite.layer);
+        }
+
         if (sprite.isReady()) {
             this.loadedSprites--;
         }
+        this.addedSprites--;
     }
 
     addBackground(backgroundPath: string): void {
@@ -118,29 +140,6 @@ class Stage {
         if (background) {
             this.background = background;
         }
-    }
-
-    changeSpritePosition(sprite: Sprite, newPosition: number): void {
-        let oldPosition = sprite.position;
-
-        while (oldPosition < 0) {
-            oldPosition += this.sprites.length;
-        }
-
-        while (newPosition < 0) {
-            newPosition += this.sprites.length;
-        }
-
-        if (newPosition >= this.sprites.length) {
-            let k = newPosition - this.sprites.length + 1;
-
-            while (k--) {
-                this.sprites.push(undefined);
-            }
-        }
-
-        this.sprites.splice(newPosition, 0, this.sprites.splice(oldPosition, 1)[0]);
-        sprite.position = newPosition;
     }
 
     drawSprite(sprite: Sprite): void {
@@ -227,51 +226,53 @@ class Stage {
             this.context.stroke();
         }
 
-        for (const sprite of this.sprites) {
-            if (sprite.hidden) {
-                continue;
-            }
+        for(const sprites of this.layers.values()) {
+            for (const sprite of sprites) {
+                if (sprite.hidden) {
+                    continue;
+                }
 
-            if (this.game.debugMode !== 'none') {
-                const fn = () => {
-                    const x = sprite.x - (this.context.measureText(sprite.name).width / 2);
-                    let y = sprite.realY + sprite.height + 20;
+                if (this.game.debugMode !== 'none') {
+                    const fn = () => {
+                        const x = sprite.x - (this.context.measureText(sprite.name).width / 2);
+                        let y = sprite.realY + sprite.height + 20;
 
-                    this.context.font = '16px Arial';
-                    this.context.fillStyle = 'black';
-                    this.context.fillText(sprite.name, x, y);
-                    y += 20;
+                        this.context.font = '16px Arial';
+                        this.context.fillStyle = 'black';
+                        this.context.fillText(sprite.name, x, y);
+                        y += 20;
 
-                    this.context.font = '14px Arial';
-                    this.context.fillText("x: " + sprite.x, x, y);
-                    y += 20;
-                    this.context.fillText("y: " + sprite.y, x, y);
-                    y += 20;
-                    this.context.fillText("direction: " + sprite.direction, x, y);
-                    y += 20;
-                    this.context.fillText("costume: " + sprite.costumeNames[sprite.costumeIndex], x, y);
-                };
+                        this.context.font = '14px Arial';
+                        this.context.fillText("x: " + sprite.x, x, y);
+                        y += 20;
+                        this.context.fillText("y: " + sprite.y, x, y);
+                        y += 20;
+                        this.context.fillText("direction: " + sprite.direction, x, y);
+                        y += 20;
+                        this.context.fillText("costume: " + sprite.getCostumeName(), x, y);
+                    };
 
-                if (this.game.debugMode === 'hover') {
-                    if (sprite.touchMouse()) {
+                    if (this.game.debugMode === 'hover') {
+                        if (sprite.touchMouse()) {
+                            fn();
+                        }
+                    }
+
+                    if (this.game.debugMode === 'forever') {
                         fn();
                     }
                 }
 
-                if (this.game.debugMode === 'forever') {
-                    fn();
+                let phrase = sprite.getPhrase();
+                if (phrase) {
+                    this.context.font = '20px Arial';
+                    this.context.fillStyle = 'black';
+                    this.context.fillText(phrase, 40, this.canvas.height - 40);
                 }
-            }
 
-            let phrase = sprite.getPhrase();
-            if (phrase) {
-                this.context.font = '20px Arial';
-                this.context.fillStyle = 'black';
-                this.context.fillText(phrase, 40, this.canvas.height - 40);
-            }
-
-            if (sprite.costume) {
-                this.drawSprite(sprite);
+                if (sprite.getCostume()) {
+                    this.drawSprite(sprite);
+                }
             }
         }
     }
@@ -313,15 +314,17 @@ class Stage {
     }
 
     isReady() {
-        return this.loadedSprites == this.sprites.length && this.loadedBackgrounds == this.backgrounds.length;
+        return this.addedSprites == this.loadedSprites && this.loadedBackgrounds == this.backgrounds.length;
     }
 
     run(): void {
         this._running = true;
         this._stopped = false;
 
-        for (const sprite of this.sprites) {
-            sprite.run();
+        for(const sprites of this.layers.values()) {
+            for (const sprite of sprites) {
+                sprite.run();
+            }
         }
 
         this.pendingRun = true;
@@ -340,8 +343,10 @@ class Stage {
         this._running = false;
         this._stopped = true;
 
-        for (const sprite of this.sprites) {
-            sprite.stop();
+        for(const sprites of this.layers.values()) {
+            for (const sprite of sprites) {
+                sprite.stop();
+            }
         }
     }
 
