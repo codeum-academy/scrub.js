@@ -311,6 +311,12 @@ var Sprite = (function () {
             _this.game.throwError('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
         });
     };
+    Sprite.prototype.cloneCostume = function (costume, name) {
+        costume.body = null;
+        this.costumes.push(costume);
+        this.costumeNames.push(name);
+        this.addCostumeByImage(costume, costume.image, costume.x, costume.y, costume.width, costume.height);
+    };
     Sprite.prototype.addCostumeByImage = function (costume, image, x, y, width, height, paddingTop, paddingRight, paddingBottom, paddingLeft) {
         if (x === void 0) { x = 0; }
         if (y === void 0) { y = 0; }
@@ -468,6 +474,17 @@ var Sprite = (function () {
             });
             document.dispatchEvent(event);
         }, false);
+    };
+    Sprite.prototype.cloneSound = function (sound, name) {
+        this.sounds.push(sound);
+        this.soundNames.push(name);
+        event = new CustomEvent(SPRITE_SOUND_READY_EVENT, {
+            detail: {
+                sound: sound,
+                spriteId: this.id
+            }
+        });
+        document.dispatchEvent(event);
     };
     Sprite.prototype.playSound = function (soundIndex, volume, currentTime) {
         if (volume === void 0) { volume = null; }
@@ -691,7 +708,7 @@ var Sprite = (function () {
         return null;
     };
     Sprite.prototype.createClone = function (stage) {
-        var e_7, _a;
+        var e_7, _a, e_8, _b;
         if (stage === void 0) { stage = null; }
         if (!this.isReady()) {
             this.game.throwError('Sprite cannot be cloned because one is not ready.');
@@ -700,25 +717,41 @@ var Sprite = (function () {
             stage = this.stage;
         }
         var clone = new Sprite(stage, this.layer);
+        clone.name = this.name;
+        clone.size = this.size;
+        clone.rotateStyle = this.rotateStyle;
+        clone.singleBody = this.singleBody;
         clone.x = this.x;
         clone.y = this.y;
         clone.direction = this.direction;
-        clone.size = this.size;
         clone.hidden = this.hidden;
         try {
-            for (var _b = __values(this.costumes), _c = _b.next(); !_c.done; _c = _b.next()) {
-                var costume = _c.value;
-                clone.addCostume(costume.image.src);
+            for (var _c = __values(this.costumes), _d = _c.next(); !_d.done; _d = _c.next()) {
+                var costume = _d.value;
+                clone.cloneCostume(costume, this.getCostumeName());
             }
         }
         catch (e_7_1) { e_7 = { error: e_7_1 }; }
         finally {
             try {
-                if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
+                if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
             }
             finally { if (e_7) throw e_7.error; }
         }
         clone.switchCostume(this.costumeIndex);
+        try {
+            for (var _e = __values(this.sounds.entries()), _f = _e.next(); !_f.done; _f = _e.next()) {
+                var _g = __read(_f.value, 2), soundIndex = _g[0], sound = _g[1];
+                clone.cloneSound(sound, this.soundNames[soundIndex]);
+            }
+        }
+        catch (e_8_1) { e_8 = { error: e_8_1 }; }
+        finally {
+            try {
+                if (_f && !_f.done && (_b = _e.return)) _b.call(_e);
+            }
+            finally { if (e_8) throw e_8.error; }
+        }
         clone.deleted = this.deleted;
         clone._stopped = this.stopped;
         return clone;
@@ -915,7 +948,7 @@ var Sprite = (function () {
         });
     };
     Sprite.prototype.tryDoOnReady = function () {
-        var e_8, _a;
+        var e_9, _a;
         if (this.isReady() && this.onReadyPending) {
             this.onReadyPending = false;
             if (this.onReadyCallbacks.length) {
@@ -925,12 +958,12 @@ var Sprite = (function () {
                         callback();
                     }
                 }
-                catch (e_8_1) { e_8 = { error: e_8_1 }; }
+                catch (e_9_1) { e_9 = { error: e_9_1 }; }
                 finally {
                     try {
                         if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
                     }
-                    finally { if (e_8) throw e_8.error; }
+                    finally { if (e_9) throw e_9.error; }
                 }
                 this.onReadyCallbacks = [];
             }
@@ -1116,7 +1149,7 @@ var Stage = (function () {
         this.drawings.push(callback);
     };
     Stage.prototype.render = function () {
-        var e_9, _a, e_10, _b, e_11, _c;
+        var e_10, _a, e_11, _b, e_12, _c;
         var _this = this;
         this.context.clearRect(0, 0, this.width, this.height);
         if (this.backgroundColor) {
@@ -1133,12 +1166,12 @@ var Stage = (function () {
                     drawing(this.context);
                 }
             }
-            catch (e_9_1) { e_9 = { error: e_9_1 }; }
+            catch (e_10_1) { e_10 = { error: e_10_1 }; }
             finally {
                 try {
                     if (_e && !_e.done && (_a = _d.return)) _a.call(_d);
                 }
-                finally { if (e_9) throw e_9.error; }
+                finally { if (e_10) throw e_10.error; }
             }
         }
         this.collisionSystem.update();
@@ -1191,26 +1224,26 @@ var Stage = (function () {
                 };
                 var this_1 = this;
                 try {
-                    for (var sprites_3 = (e_11 = void 0, __values(sprites)), sprites_3_1 = sprites_3.next(); !sprites_3_1.done; sprites_3_1 = sprites_3.next()) {
+                    for (var sprites_3 = (e_12 = void 0, __values(sprites)), sprites_3_1 = sprites_3.next(); !sprites_3_1.done; sprites_3_1 = sprites_3.next()) {
                         var sprite = sprites_3_1.value;
                         _loop_1(sprite);
                     }
                 }
-                catch (e_11_1) { e_11 = { error: e_11_1 }; }
+                catch (e_12_1) { e_12 = { error: e_12_1 }; }
                 finally {
                     try {
                         if (sprites_3_1 && !sprites_3_1.done && (_c = sprites_3.return)) _c.call(sprites_3);
                     }
-                    finally { if (e_11) throw e_11.error; }
+                    finally { if (e_12) throw e_12.error; }
                 }
             }
         }
-        catch (e_10_1) { e_10 = { error: e_10_1 }; }
+        catch (e_11_1) { e_11 = { error: e_11_1 }; }
         finally {
             try {
                 if (_g && !_g.done && (_b = _f.return)) _b.call(_f);
             }
-            finally { if (e_10) throw e_10.error; }
+            finally { if (e_11) throw e_11.error; }
         }
     };
     Stage.prototype.timeout = function (callback, timeout) {
@@ -1250,33 +1283,33 @@ var Stage = (function () {
         return this.addedSprites == this.loadedSprites && this.loadedBackgrounds == this.backgrounds.length;
     };
     Stage.prototype.run = function () {
-        var e_12, _a, e_13, _b;
+        var e_13, _a, e_14, _b;
         this._running = true;
         this._stopped = false;
         try {
             for (var _c = __values(this.layers.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
                 var sprites = _d.value;
                 try {
-                    for (var sprites_4 = (e_13 = void 0, __values(sprites)), sprites_4_1 = sprites_4.next(); !sprites_4_1.done; sprites_4_1 = sprites_4.next()) {
+                    for (var sprites_4 = (e_14 = void 0, __values(sprites)), sprites_4_1 = sprites_4.next(); !sprites_4_1.done; sprites_4_1 = sprites_4.next()) {
                         var sprite = sprites_4_1.value;
                         sprite.run();
                     }
                 }
-                catch (e_13_1) { e_13 = { error: e_13_1 }; }
+                catch (e_14_1) { e_14 = { error: e_14_1 }; }
                 finally {
                     try {
                         if (sprites_4_1 && !sprites_4_1.done && (_b = sprites_4.return)) _b.call(sprites_4);
                     }
-                    finally { if (e_13) throw e_13.error; }
+                    finally { if (e_14) throw e_14.error; }
                 }
             }
         }
-        catch (e_12_1) { e_12 = { error: e_12_1 }; }
+        catch (e_13_1) { e_13 = { error: e_13_1 }; }
         finally {
             try {
                 if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
             }
-            finally { if (e_12) throw e_12.error; }
+            finally { if (e_13) throw e_13.error; }
         }
         this.pendingRun = true;
         this.tryDoRun();
@@ -1288,33 +1321,33 @@ var Stage = (function () {
         this.onReadyCallbacks.push(callback);
     };
     Stage.prototype.stop = function () {
-        var e_14, _a, e_15, _b;
+        var e_15, _a, e_16, _b;
         this._running = false;
         this._stopped = true;
         try {
             for (var _c = __values(this.layers.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
                 var sprites = _d.value;
                 try {
-                    for (var sprites_5 = (e_15 = void 0, __values(sprites)), sprites_5_1 = sprites_5.next(); !sprites_5_1.done; sprites_5_1 = sprites_5.next()) {
+                    for (var sprites_5 = (e_16 = void 0, __values(sprites)), sprites_5_1 = sprites_5.next(); !sprites_5_1.done; sprites_5_1 = sprites_5.next()) {
                         var sprite = sprites_5_1.value;
                         sprite.stop();
                     }
                 }
-                catch (e_15_1) { e_15 = { error: e_15_1 }; }
+                catch (e_16_1) { e_16 = { error: e_16_1 }; }
                 finally {
                     try {
                         if (sprites_5_1 && !sprites_5_1.done && (_b = sprites_5.return)) _b.call(sprites_5);
                     }
-                    finally { if (e_15) throw e_15.error; }
+                    finally { if (e_16) throw e_16.error; }
                 }
             }
         }
-        catch (e_14_1) { e_14 = { error: e_14_1 }; }
+        catch (e_15_1) { e_15 = { error: e_15_1 }; }
         finally {
             try {
                 if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
             }
-            finally { if (e_14) throw e_14.error; }
+            finally { if (e_15) throw e_15.error; }
         }
     };
     Stage.prototype.getTopEdge = function () {
@@ -1350,7 +1383,7 @@ var Stage = (function () {
         });
     };
     Stage.prototype.tryDoOnReady = function () {
-        var e_16, _a;
+        var e_17, _a;
         if (this.isReady() && this.onReadyPending) {
             this.onReadyPending = false;
             if (this.onReadyCallbacks.length) {
@@ -1360,12 +1393,12 @@ var Stage = (function () {
                         callback();
                     }
                 }
-                catch (e_16_1) { e_16 = { error: e_16_1 }; }
+                catch (e_17_1) { e_17 = { error: e_17_1 }; }
                 finally {
                     try {
                         if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
                     }
-                    finally { if (e_16) throw e_16.error; }
+                    finally { if (e_17) throw e_17.error; }
                 }
                 this.onReadyCallbacks = [];
             }
@@ -1378,7 +1411,7 @@ var Stage = (function () {
         }
     };
     Stage.prototype.doOnStart = function () {
-        var e_17, _a;
+        var e_18, _a;
         var _loop_2 = function (callback) {
             setTimeout(function () {
                 callback();
@@ -1390,12 +1423,12 @@ var Stage = (function () {
                 _loop_2(callback);
             }
         }
-        catch (e_17_1) { e_17 = { error: e_17_1 }; }
+        catch (e_18_1) { e_18 = { error: e_18_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_17) throw e_17.error; }
+            finally { if (e_18) throw e_18.error; }
         }
     };
     Stage.prototype.tryDoRun = function () {
@@ -1860,7 +1893,7 @@ var CollisionSystem = (function () {
         return new CollisionResult();
     };
     CollisionSystem.prototype.insert = function () {
-        var e_18, _a;
+        var e_19, _a;
         var bodies = [];
         for (var _i = 0; _i < arguments.length; _i++) {
             bodies[_i] = arguments[_i];
@@ -1871,17 +1904,17 @@ var CollisionSystem = (function () {
                 this._bvh.insert(body, false);
             }
         }
-        catch (e_18_1) { e_18 = { error: e_18_1 }; }
+        catch (e_19_1) { e_19 = { error: e_19_1 }; }
         finally {
             try {
                 if (bodies_1_1 && !bodies_1_1.done && (_a = bodies_1.return)) _a.call(bodies_1);
             }
-            finally { if (e_18) throw e_18.error; }
+            finally { if (e_19) throw e_19.error; }
         }
         return this;
     };
     CollisionSystem.prototype.remove = function () {
-        var e_19, _a;
+        var e_20, _a;
         var bodies = [];
         for (var _i = 0; _i < arguments.length; _i++) {
             bodies[_i] = arguments[_i];
@@ -1892,12 +1925,12 @@ var CollisionSystem = (function () {
                 this._bvh.remove(body, false);
             }
         }
-        catch (e_19_1) { e_19 = { error: e_19_1 }; }
+        catch (e_20_1) { e_20 = { error: e_20_1 }; }
         finally {
             try {
                 if (bodies_2_1 && !bodies_2_1.done && (_a = bodies_2.return)) _a.call(bodies_2);
             }
-            finally { if (e_19) throw e_19.error; }
+            finally { if (e_20) throw e_20.error; }
         }
         return this;
     };

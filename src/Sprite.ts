@@ -119,6 +119,22 @@ class Sprite {
         });
     }
 
+    private cloneCostume(costume: Costume, name: string) {
+        costume.body = null;
+
+        this.costumes.push(costume);
+        this.costumeNames.push(name);
+
+        this.addCostumeByImage(
+            costume,
+            costume.image,
+            costume.x,
+            costume.y,
+            costume.width,
+            costume.height
+        );
+    }
+
     private addCostumeByImage(
         costume: Costume,
         image: HTMLImageElement,
@@ -325,6 +341,20 @@ class Sprite {
 
             document.dispatchEvent(event);
         }, false);
+    }
+
+    private cloneSound(sound, name) {
+        this.sounds.push(sound);
+        this.soundNames.push(name);
+
+        event = new CustomEvent(SPRITE_SOUND_READY_EVENT, {
+            detail: {
+                sound: sound,
+                spriteId: this.id
+            }
+        });
+
+        document.dispatchEvent(event);
     }
 
     playSound(soundIndex, volume: number = null, currentTime: number = null): void {
@@ -558,16 +588,23 @@ class Sprite {
 
         const clone = new Sprite(stage, this.layer);
 
+        clone.name = this.name;
+        clone.size = this.size;
+        clone.rotateStyle = this.rotateStyle;
+        clone.singleBody = this.singleBody;
         clone.x = this.x;
         clone.y = this.y;
         clone.direction = this.direction;
-        clone.size = this.size;
         clone.hidden = this.hidden;
 
         for (const costume of this.costumes) {
-            clone.addCostume(costume.image.src);
+            clone.cloneCostume(costume, this.getCostumeName());
         }
         clone.switchCostume(this.costumeIndex);
+
+        for (let [soundIndex, sound] of this.sounds.entries()) {
+            clone.cloneSound(sound, this.soundNames[soundIndex]);
+        }
 
         clone.deleted = this.deleted;
         clone._stopped = this.stopped;
