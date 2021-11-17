@@ -25,10 +25,6 @@ var __read = (this && this.__read) || function (o, n) {
     }
     return ar;
 };
-var __spread = (this && this.__spread) || function () {
-    for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read(arguments[i]));
-    return ar;
-};
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = function (d, b) {
         extendStatics = Object.setPrototypeOf ||
@@ -1073,7 +1069,6 @@ var Stage = (function () {
         else {
             layerSprites = [];
             this.sprites.set(sprite.layer, layerSprites);
-            this.sprites = new Map(__spread(this.sprites.entries()).sort(function (a, b) { return a[0] - b[0]; }));
         }
         layerSprites.push(sprite);
         this.addedSprites++;
@@ -1154,7 +1149,6 @@ var Stage = (function () {
         else {
             layerDrawings = [];
             this.drawings.set(layer, layerDrawings);
-            this.drawings = new Map(__spread(this.drawings.entries()).sort(function (a, b) { return a[0] - b[0]; }));
         }
         layerDrawings.push(callback);
     };

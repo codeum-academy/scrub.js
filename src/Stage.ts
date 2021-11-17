@@ -88,7 +88,6 @@ class Stage {
         } else {
             layerSprites = [];
             this.sprites.set(sprite.layer, layerSprites);
-            this.sprites = new Map([...this.sprites.entries()].sort((a, b) => a[0] - b[0]));
         }
 
         layerSprites.push(sprite);
@@ -208,7 +207,6 @@ class Stage {
         } else {
             layerDrawings = [];
             this.drawings.set(layer, layerDrawings);
-            this.drawings = new Map([...this.drawings.entries()].sort((a, b) => a[0] - b[0]));
         }
 
         layerDrawings.push(callback);
