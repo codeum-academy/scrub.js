@@ -997,8 +997,8 @@ var Stage = (function () {
         this.background = null;
         this.backgroundIndex = null;
         this.backgrounds = [];
-        this.layers = new Map();
-        this.drawings = [];
+        this.sprites = new Map();
+        this.drawings = new Map();
         this.addedSprites = 0;
         this.loadedSprites = 0;
         this.loadedBackgrounds = 0;
@@ -1066,26 +1066,26 @@ var Stage = (function () {
         configurable: true
     });
     Stage.prototype.addSprite = function (sprite) {
-        var sprites;
-        if (this.layers.has(sprite.layer)) {
-            sprites = this.layers.get(sprite.layer);
+        var layerSprites;
+        if (this.sprites.has(sprite.layer)) {
+            layerSprites = this.sprites.get(sprite.layer);
         }
         else {
-            sprites = [];
-            this.layers.set(sprite.layer, sprites);
-            this.layers = new Map(__spread(this.layers.entries()).sort(function (a, b) { return a[0] - b[0]; }));
+            layerSprites = [];
+            this.sprites.set(sprite.layer, layerSprites);
+            this.sprites = new Map(__spread(this.sprites.entries()).sort(function (a, b) { return a[0] - b[0]; }));
         }
-        sprites.push(sprite);
+        layerSprites.push(sprite);
         this.addedSprites++;
     };
     Stage.prototype.removeSprite = function (sprite) {
-        if (!this.layers.has(sprite.layer)) {
+        if (!this.sprites.has(sprite.layer)) {
             this.game.throwError('The layer "' + sprite.layer + '" not defined in the stage.');
         }
-        var sprites = this.layers.get(sprite.layer);
-        sprites.splice(sprites.indexOf(sprite), 1);
-        if (!sprites.length) {
-            this.layers.delete(sprite.layer);
+        var layerSprites = this.sprites.get(sprite.layer);
+        layerSprites.splice(layerSprites.indexOf(sprite), 1);
+        if (!layerSprites.length) {
+            this.sprites.delete(sprite.layer);
         }
         if (sprite.isReady()) {
             this.loadedSprites--;
@@ -1145,8 +1145,18 @@ var Stage = (function () {
             this.context.restore();
         }
     };
-    Stage.prototype.pen = function (callback) {
-        this.drawings.push(callback);
+    Stage.prototype.pen = function (callback, layer) {
+        if (layer === void 0) { layer = 0; }
+        var layerDrawings;
+        if (this.drawings.has(layer)) {
+            layerDrawings = this.drawings.get(layer);
+        }
+        else {
+            layerDrawings = [];
+            this.drawings.set(layer, layerDrawings);
+            this.drawings = new Map(__spread(this.drawings.entries()).sort(function (a, b) { return a[0] - b[0]; }));
+        }
+        layerDrawings.push(callback);
     };
     Stage.prototype.render = function () {
         var e_10, _a, e_11, _b, e_12, _c;
@@ -1159,91 +1169,98 @@ var Stage = (function () {
         if (this.background) {
             this.context.drawImage(this.background, 0, 0, this.width, this.height);
         }
-        if (this.drawings.length) {
-            try {
-                for (var _d = __values(this.drawings), _e = _d.next(); !_e.done; _e = _d.next()) {
-                    var drawing = _e.value;
-                    drawing(this.context);
-                }
-            }
-            catch (e_10_1) { e_10 = { error: e_10_1 }; }
-            finally {
-                try {
-                    if (_e && !_e.done && (_a = _d.return)) _a.call(_d);
-                }
-                finally { if (e_10) throw e_10.error; }
-            }
-        }
         this.collisionSystem.update();
         if (this.game.debugBody) {
             this.collisionSystem.draw(this.context);
             this.context.stroke();
         }
+        var layers = Array.from(this.sprites.keys()).concat(Array.from(this.drawings.keys()));
+        layers = layers.filter(function (item, pos) { return layers.indexOf(item) === pos; });
+        layers = layers.sort(function (a, b) { return a - b; });
         try {
-            for (var _f = __values(this.layers.values()), _g = _f.next(); !_g.done; _g = _f.next()) {
-                var sprites = _g.value;
-                var _loop_1 = function (sprite) {
-                    if (sprite.hidden) {
-                        return "continue";
+            for (var layers_1 = __values(layers), layers_1_1 = layers_1.next(); !layers_1_1.done; layers_1_1 = layers_1.next()) {
+                var layer = layers_1_1.value;
+                if (this.drawings.has(layer)) {
+                    var layerDrawings = this.drawings.get(layer);
+                    try {
+                        for (var layerDrawings_1 = (e_11 = void 0, __values(layerDrawings)), layerDrawings_1_1 = layerDrawings_1.next(); !layerDrawings_1_1.done; layerDrawings_1_1 = layerDrawings_1.next()) {
+                            var drawing = layerDrawings_1_1.value;
+                            drawing(this.context);
+                        }
                     }
-                    if (this_1.game.debugMode !== 'none') {
-                        var fn = function () {
-                            var x = sprite.x - (_this.context.measureText(sprite.name).width / 2);
-                            var y = sprite.realY + sprite.height + 20;
-                            _this.context.font = '16px Arial';
-                            _this.context.fillStyle = 'black';
-                            _this.context.fillText(sprite.name, x, y);
-                            y += 20;
-                            _this.context.font = '14px Arial';
-                            _this.context.fillText("x: " + sprite.x, x, y);
-                            y += 20;
-                            _this.context.fillText("y: " + sprite.y, x, y);
-                            y += 20;
-                            _this.context.fillText("direction: " + sprite.direction, x, y);
-                            y += 20;
-                            _this.context.fillText("costume: " + sprite.getCostumeName(), x, y);
-                        };
-                        if (this_1.game.debugMode === 'hover') {
-                            if (sprite.touchMouse()) {
+                    catch (e_11_1) { e_11 = { error: e_11_1 }; }
+                    finally {
+                        try {
+                            if (layerDrawings_1_1 && !layerDrawings_1_1.done && (_b = layerDrawings_1.return)) _b.call(layerDrawings_1);
+                        }
+                        finally { if (e_11) throw e_11.error; }
+                    }
+                }
+                if (this.sprites.has(layer)) {
+                    var layerSprites = this.sprites.get(layer);
+                    var _loop_1 = function (sprite) {
+                        if (sprite.hidden) {
+                            return "continue";
+                        }
+                        if (this_1.game.debugMode !== 'none') {
+                            var fn = function () {
+                                var x = sprite.x - (_this.context.measureText(sprite.name).width / 2);
+                                var y = sprite.realY + sprite.height + 20;
+                                _this.context.font = '16px Arial';
+                                _this.context.fillStyle = 'black';
+                                _this.context.fillText(sprite.name, x, y);
+                                y += 20;
+                                _this.context.font = '14px Arial';
+                                _this.context.fillText("x: " + sprite.x, x, y);
+                                y += 20;
+                                _this.context.fillText("y: " + sprite.y, x, y);
+                                y += 20;
+                                _this.context.fillText("direction: " + sprite.direction, x, y);
+                                y += 20;
+                                _this.context.fillText("costume: " + sprite.getCostumeName(), x, y);
+                            };
+                            if (this_1.game.debugMode === 'hover') {
+                                if (sprite.touchMouse()) {
+                                    fn();
+                                }
+                            }
+                            if (this_1.game.debugMode === 'forever') {
                                 fn();
                             }
                         }
-                        if (this_1.game.debugMode === 'forever') {
-                            fn();
+                        var phrase = sprite.getPhrase();
+                        if (phrase) {
+                            this_1.context.font = '20px Arial';
+                            this_1.context.fillStyle = 'black';
+                            this_1.context.fillText(phrase, 40, this_1.canvas.height - 40);
+                        }
+                        if (sprite.getCostume()) {
+                            this_1.drawSprite(sprite);
+                        }
+                    };
+                    var this_1 = this;
+                    try {
+                        for (var layerSprites_1 = (e_12 = void 0, __values(layerSprites)), layerSprites_1_1 = layerSprites_1.next(); !layerSprites_1_1.done; layerSprites_1_1 = layerSprites_1.next()) {
+                            var sprite = layerSprites_1_1.value;
+                            _loop_1(sprite);
                         }
                     }
-                    var phrase = sprite.getPhrase();
-                    if (phrase) {
-                        this_1.context.font = '20px Arial';
-                        this_1.context.fillStyle = 'black';
-                        this_1.context.fillText(phrase, 40, this_1.canvas.height - 40);
+                    catch (e_12_1) { e_12 = { error: e_12_1 }; }
+                    finally {
+                        try {
+                            if (layerSprites_1_1 && !layerSprites_1_1.done && (_c = layerSprites_1.return)) _c.call(layerSprites_1);
+                        }
+                        finally { if (e_12) throw e_12.error; }
                     }
-                    if (sprite.getCostume()) {
-                        this_1.drawSprite(sprite);
-                    }
-                };
-                var this_1 = this;
-                try {
-                    for (var sprites_3 = (e_12 = void 0, __values(sprites)), sprites_3_1 = sprites_3.next(); !sprites_3_1.done; sprites_3_1 = sprites_3.next()) {
-                        var sprite = sprites_3_1.value;
-                        _loop_1(sprite);
-                    }
-                }
-                catch (e_12_1) { e_12 = { error: e_12_1 }; }
-                finally {
-                    try {
-                        if (sprites_3_1 && !sprites_3_1.done && (_c = sprites_3.return)) _c.call(sprites_3);
-                    }
-                    finally { if (e_12) throw e_12.error; }
                 }
             }
         }
-        catch (e_11_1) { e_11 = { error: e_11_1 }; }
+        catch (e_10_1) { e_10 = { error: e_10_1 }; }
         finally {
             try {
-                if (_g && !_g.done && (_b = _f.return)) _b.call(_f);
+                if (layers_1_1 && !layers_1_1.done && (_a = layers_1.return)) _a.call(layers_1);
             }
-            finally { if (e_11) throw e_11.error; }
+            finally { if (e_10) throw e_10.error; }
         }
     };
     Stage.prototype.timeout = function (callback, timeout) {
@@ -1287,18 +1304,18 @@ var Stage = (function () {
         this._running = true;
         this._stopped = false;
         try {
-            for (var _c = __values(this.layers.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
-                var sprites = _d.value;
+            for (var _c = __values(this.sprites.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
+                var layerSprites = _d.value;
                 try {
-                    for (var sprites_4 = (e_14 = void 0, __values(sprites)), sprites_4_1 = sprites_4.next(); !sprites_4_1.done; sprites_4_1 = sprites_4.next()) {
-                        var sprite = sprites_4_1.value;
+                    for (var layerSprites_2 = (e_14 = void 0, __values(layerSprites)), layerSprites_2_1 = layerSprites_2.next(); !layerSprites_2_1.done; layerSprites_2_1 = layerSprites_2.next()) {
+                        var sprite = layerSprites_2_1.value;
                         sprite.run();
                     }
                 }
                 catch (e_14_1) { e_14 = { error: e_14_1 }; }
                 finally {
                     try {
-                        if (sprites_4_1 && !sprites_4_1.done && (_b = sprites_4.return)) _b.call(sprites_4);
+                        if (layerSprites_2_1 && !layerSprites_2_1.done && (_b = layerSprites_2.return)) _b.call(layerSprites_2);
                     }
                     finally { if (e_14) throw e_14.error; }
                 }
@@ -1325,18 +1342,18 @@ var Stage = (function () {
         this._running = false;
         this._stopped = true;
         try {
-            for (var _c = __values(this.layers.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
-                var sprites = _d.value;
+            for (var _c = __values(this.sprites.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
+                var layerSprites = _d.value;
                 try {
-                    for (var sprites_5 = (e_16 = void 0, __values(sprites)), sprites_5_1 = sprites_5.next(); !sprites_5_1.done; sprites_5_1 = sprites_5.next()) {
-                        var sprite = sprites_5_1.value;
+                    for (var layerSprites_3 = (e_16 = void 0, __values(layerSprites)), layerSprites_3_1 = layerSprites_3.next(); !layerSprites_3_1.done; layerSprites_3_1 = layerSprites_3.next()) {
+                        var sprite = layerSprites_3_1.value;
                         sprite.stop();
                     }
                 }
                 catch (e_16_1) { e_16 = { error: e_16_1 }; }
                 finally {
                     try {
-                        if (sprites_5_1 && !sprites_5_1.done && (_b = sprites_5.return)) _b.call(sprites_5);
+                        if (layerSprites_3_1 && !layerSprites_3_1.done && (_b = layerSprites_3.return)) _b.call(layerSprites_3);
                     }
                     finally { if (e_16) throw e_16.error; }
                 }

@@ -1,3 +1,5 @@
+type DrawingCallbackFunction = (context: CanvasRenderingContext2D) => void;
+
 class Stage {
     id: Symbol;
     canvas: HTMLCanvasElement;
@@ -9,8 +11,8 @@ class Stage {
     private background = null;
     private backgroundIndex = null;
     private backgrounds = [];
-    private layers = new Map<number, Sprite[]>();
-    private drawings = [];
+    private sprites = new Map<number, Sprite[]>();
+    private drawings = new Map<number, DrawingCallbackFunction[]>();
     private topEdge: Polygon;
     private rightEdge: Polygon;
     private bottomEdge: Polygon;
@@ -78,31 +80,31 @@ class Stage {
     }
 
     addSprite(sprite: Sprite): void {
-        let sprites: Sprite[];
+        let layerSprites: Sprite[];
 
-        if (this.layers.has(sprite.layer)) {
-            sprites = this.layers.get(sprite.layer);
+        if (this.sprites.has(sprite.layer)) {
+            layerSprites = this.sprites.get(sprite.layer);
 
         } else {
-            sprites = [];
-            this.layers.set(sprite.layer, sprites);
-            this.layers = new Map([...this.layers.entries()].sort((a, b) => a[0] - b[0]));
+            layerSprites = [];
+            this.sprites.set(sprite.layer, layerSprites);
+            this.sprites = new Map([...this.sprites.entries()].sort((a, b) => a[0] - b[0]));
         }
 
-        sprites.push(sprite);
+        layerSprites.push(sprite);
         this.addedSprites++;
     }
 
     removeSprite(sprite: Sprite): void {
-        if (!this.layers.has(sprite.layer)) {
+        if (!this.sprites.has(sprite.layer)) {
             this.game.throwError('The layer "' + sprite.layer + '" not defined in the stage.');
         }
 
-        const sprites = this.layers.get(sprite.layer);
-        sprites.splice(sprites.indexOf(sprite), 1);
+        const layerSprites = this.sprites.get(sprite.layer);
+        layerSprites.splice(layerSprites.indexOf(sprite), 1);
 
-        if (!sprites.length) {
-            this.layers.delete(sprite.layer);
+        if (!layerSprites.length) {
+            this.sprites.delete(sprite.layer);
         }
 
         if (sprite.isReady()) {
@@ -197,8 +199,19 @@ class Stage {
         }
     }
 
-    pen(callback): void {
-        this.drawings.push(callback);
+    pen(callback: DrawingCallbackFunction, layer = 0): void {
+        let layerDrawings: DrawingCallbackFunction[];
+
+        if (this.drawings.has(layer)) {
+            layerDrawings = this.drawings.get(layer);
+
+        } else {
+            layerDrawings = [];
+            this.drawings.set(layer, layerDrawings);
+            this.drawings = new Map([...this.drawings.entries()].sort((a, b) => a[0] - b[0]));
+        }
+
+        layerDrawings.push(callback);
     }
 
     render(): void {
@@ -213,12 +226,6 @@ class Stage {
             this.context.drawImage(this.background, 0, 0, this.width, this.height);
         }
 
-        if (this.drawings.length) {
-            for (const drawing of this.drawings) {
-                drawing(this.context);
-            }
-        }
-
         this.collisionSystem.update();
 
         if (this.game.debugBody) {
@@ -226,52 +233,68 @@ class Stage {
             this.context.stroke();
         }
 
-        for(const sprites of this.layers.values()) {
-            for (const sprite of sprites) {
-                if (sprite.hidden) {
-                    continue;
+        let layers = Array.from(this.sprites.keys()).concat(Array.from(this.drawings.keys()));
+        layers = layers.filter((item, pos) => layers.indexOf(item) === pos);
+        layers = layers.sort((a, b) => a - b);
+
+        for(const layer of layers) {
+            if (this.drawings.has(layer)) {
+                const layerDrawings = this.drawings.get(layer);
+
+                for (const drawing of layerDrawings) {
+                    drawing(this.context);
                 }
+            }
 
-                if (this.game.debugMode !== 'none') {
-                    const fn = () => {
-                        const x = sprite.x - (this.context.measureText(sprite.name).width / 2);
-                        let y = sprite.realY + sprite.height + 20;
+            if (this.sprites.has(layer)) {
+                const layerSprites = this.sprites.get(layer);
 
-                        this.context.font = '16px Arial';
-                        this.context.fillStyle = 'black';
-                        this.context.fillText(sprite.name, x, y);
-                        y += 20;
+                for (const sprite of layerSprites) {
+                    if (sprite.hidden) {
+                        continue;
+                    }
 
-                        this.context.font = '14px Arial';
-                        this.context.fillText("x: " + sprite.x, x, y);
-                        y += 20;
-                        this.context.fillText("y: " + sprite.y, x, y);
-                        y += 20;
-                        this.context.fillText("direction: " + sprite.direction, x, y);
-                        y += 20;
-                        this.context.fillText("costume: " + sprite.getCostumeName(), x, y);
-                    };
+                    if (this.game.debugMode !== 'none') {
+                        const fn = () => {
+                            const x = sprite.x - (this.context.measureText(sprite.name).width / 2);
+                            let y = sprite.realY + sprite.height + 20;
 
-                    if (this.game.debugMode === 'hover') {
-                        if (sprite.touchMouse()) {
+                            this.context.font = '16px Arial';
+                            this.context.fillStyle = 'black';
+                            this.context.fillText(sprite.name, x, y);
+                            y += 20;
+
+                            this.context.font = '14px Arial';
+                            this.context.fillText("x: " + sprite.x, x, y);
+                            y += 20;
+                            this.context.fillText("y: " + sprite.y, x, y);
+                            y += 20;
+                            this.context.fillText("direction: " + sprite.direction, x, y);
+                            y += 20;
+                            this.context.fillText("costume: " + sprite.getCostumeName(), x, y);
+                        };
+
+                        if (this.game.debugMode === 'hover') {
+                            if (sprite.touchMouse()) {
+                                fn();
+                            }
+                        }
+
+                        if (this.game.debugMode === 'forever') {
                             fn();
                         }
                     }
 
-                    if (this.game.debugMode === 'forever') {
-                        fn();
+                    let phrase = sprite.getPhrase();
+                    if (phrase) {
+                        this.context.font = '20px Arial';
+                        this.context.fillStyle = 'black';
+                        this.context.fillText(phrase, 40, this.canvas.height - 40);
                     }
-                }
 
-                let phrase = sprite.getPhrase();
-                if (phrase) {
-                    this.context.font = '20px Arial';
-                    this.context.fillStyle = 'black';
-                    this.context.fillText(phrase, 40, this.canvas.height - 40);
-                }
-
-                if (sprite.getCostume()) {
-                    this.drawSprite(sprite);
+                    if (sprite.getCostume()) {
+                        this.drawSprite(sprite);
+                    }
                 }
             }
         }
@@ -321,8 +344,8 @@ class Stage {
         this._running = true;
         this._stopped = false;
 
-        for(const sprites of this.layers.values()) {
-            for (const sprite of sprites) {
+        for(const layerSprites of this.sprites.values()) {
+            for (const sprite of layerSprites) {
                 sprite.run();
             }
         }
@@ -343,8 +366,8 @@ class Stage {
         this._running = false;
         this._stopped = true;
 
-        for(const sprites of this.layers.values()) {
-            for (const sprite of sprites) {
+        for(const layerSprites of this.sprites.values()) {
+            for (const sprite of layerSprites) {
                 sprite.stop();
             }
         }
