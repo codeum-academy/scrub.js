@@ -25,7 +25,6 @@ class Game {
     constructor(width: number = null, height: number = null, canvasId: string = null) {
         this.id = Symbol();
         this.keyboard = new Keyboard();
-        this.mouse = new Mouse();
 
         if (canvasId) {
             const element = document.getElementById(canvasId);
@@ -42,6 +41,7 @@ class Game {
         this.canvas.width  = width;
         this.canvas.height = height;
         this.styles = new Styles(this.canvas, width, height);
+        this.mouse = new Mouse(this.styles);
         this.context = this.canvas.getContext('2d');
 
         Registry.getInstance().set('game', this);

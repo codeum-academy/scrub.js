@@ -4,7 +4,7 @@ class Mouse {
     isDown = false;
     private point: Point;
 
-    constructor() {
+    constructor(styles) {
         document.addEventListener('mousedown', () => {
             this.isDown = true;
         });
@@ -14,8 +14,8 @@ class Mouse {
         });
 
         document.addEventListener('mousemove', (e) => {
-            this.x = e.clientX;
-            this.y = e.clientY;
+            this.x = e.clientX - styles.canvasRect.left;
+            this.y = e.clientY - styles.canvasRect.top;
         });
 
         this.point = new Point(this.x, this.y);

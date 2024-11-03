@@ -29,10 +29,12 @@ var __extends = (this && this.__extends) || (function () {
     var extendStatics = function (d, b) {
         extendStatics = Object.setPrototypeOf ||
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
         return extendStatics(d, b);
     };
     return function (d, b) {
+        if (typeof b !== "function" && b !== null)
+            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
         extendStatics(d, b);
         function __() { this.constructor = d; }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
@@ -66,7 +68,6 @@ var Game = (function () {
         this.onReadyPending = true;
         this.id = Symbol();
         this.keyboard = new Keyboard();
-        this.mouse = new Mouse();
         if (canvasId) {
             var element = document.getElementById(canvasId);
             if (element instanceof HTMLCanvasElement) {
@@ -80,6 +81,7 @@ var Game = (function () {
         this.canvas.width = width;
         this.canvas.height = height;
         this.styles = new Styles(this.canvas, width, height);
+        this.mouse = new Mouse(this.styles);
         this.context = this.canvas.getContext('2d');
         Registry.getInstance().set('game', this);
         this.addListeners();
@@ -128,14 +130,14 @@ var Game = (function () {
         get: function () {
             return this.canvas.width;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Game.prototype, "height", {
         get: function () {
             return this.canvas.height;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Game.prototype.keyPressed = function (char) {
@@ -833,7 +835,7 @@ var Sprite = (function () {
                 }
             }
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "width", {
@@ -843,7 +845,7 @@ var Sprite = (function () {
             }
             return null;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "height", {
@@ -853,7 +855,7 @@ var Sprite = (function () {
             }
             return null;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "x", {
@@ -866,7 +868,7 @@ var Sprite = (function () {
                 this.body.x = value;
             }
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "y", {
@@ -879,21 +881,21 @@ var Sprite = (function () {
                 this.body.y = value;
             }
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "realX", {
         get: function () {
             return this.x - this.width / 2;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "realY", {
         get: function () {
             return this.y - this.height / 2;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "hidden", {
@@ -903,14 +905,14 @@ var Sprite = (function () {
         set: function (value) {
             this._hidden = value;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "stopped", {
         get: function () {
             return this._stopped;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "layer", {
@@ -922,7 +924,7 @@ var Sprite = (function () {
             this._layer = value;
             this.stage.addSprite(this);
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Sprite.prototype.addListeners = function () {
@@ -1030,35 +1032,35 @@ var Stage = (function () {
             this.bottomEdge = this.collisionSystem.createPolygon(0, 0, [[this.width - padding, this.height - padding], [padding, this.height - padding]]);
             this.leftEdge = this.collisionSystem.createPolygon(0, 0, [[padding, this.height - padding], [padding, padding]]);
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Stage.prototype, "width", {
         get: function () {
             return this.canvas.width;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Stage.prototype, "height", {
         get: function () {
             return this.canvas.height;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Stage.prototype, "running", {
         get: function () {
             return this._running;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Object.defineProperty(Stage.prototype, "stopped", {
         get: function () {
             return this._stopped;
         },
-        enumerable: true,
+        enumerable: false,
         configurable: true
     });
     Stage.prototype.addSprite = function (sprite) {
@@ -2724,7 +2726,7 @@ var Keyboard = (function () {
     return Keyboard;
 }());
 var Mouse = (function () {
-    function Mouse() {
+    function Mouse(styles) {
         var _this = this;
         this.x = 0;
         this.y = 0;
@@ -2736,8 +2738,8 @@ var Mouse = (function () {
             _this.isDown = false;
         });
         document.addEventListener('mousemove', function (e) {
-            _this.x = e.clientX;
-            _this.y = e.clientY;
+            _this.x = e.clientX - styles.canvasRect.left;
+            _this.y = e.clientY - styles.canvasRect.top;
         });
         this.point = new Point(this.x, this.y);
     }
@@ -2775,8 +2777,10 @@ var Styles = (function () {
         this.canvas = canvas;
         this.setEnvironmentStyles();
         this.setCanvasSize(width, height);
+        this.canvasRect = canvas.getBoundingClientRect();
         window.addEventListener('resize', function () {
             _this.setCanvasSize(width, height);
+            _this.canvasRect = canvas.getBoundingClientRect();
         });
     }
     Styles.prototype.setEnvironmentStyles = function () {

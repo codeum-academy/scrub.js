@@ -1,14 +1,17 @@
 class Styles {
     canvas;
+    canvasRect;
 
     constructor(canvas, width, height) {
         this.canvas = canvas;
-
         this.setEnvironmentStyles();
 
         this.setCanvasSize(width, height);
+        this.canvasRect = canvas.getBoundingClientRect();
+
         window.addEventListener('resize', () => {
             this.setCanvasSize(width, height);
+            this.canvasRect = canvas.getBoundingClientRect();
         });
     }
 
