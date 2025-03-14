@@ -119,7 +119,7 @@ class Stage {
         this.backgrounds.push(background);
 
         background.addEventListener('load', () => {
-            event = new CustomEvent(STAGE_BACKGROUND_READY_EVENT, {
+            event = new CustomEvent(Game.STAGE_BACKGROUND_READY_EVENT, {
                 detail: {
                     background: background,
                     stageId: this.id
@@ -369,6 +369,8 @@ class Stage {
                 sprite.stop();
             }
         }
+
+        this.drawings.clear();
     }
 
     getTopEdge(): Polygon {
@@ -387,8 +389,12 @@ class Stage {
         return this.leftEdge;
     }
 
+    getSprites() {
+        return Array.from(this.sprites.values()).reduce((accumulator, currentValue) => accumulator.concat(currentValue), []);
+    }
+
     private addListeners() {
-        document.addEventListener(SPRITE_READY_EVENT, (event: CustomEvent) => {
+        document.addEventListener(Game.SPRITE_READY_EVENT, (event: CustomEvent) => {
             if (this.id == event.detail.stageId) {
                 this.loadedSprites++;
                 this.tryDoOnReady();
@@ -396,7 +402,7 @@ class Stage {
             }
         });
 
-        document.addEventListener(STAGE_BACKGROUND_READY_EVENT, (event: CustomEvent) => {
+        document.addEventListener(Game.STAGE_BACKGROUND_READY_EVENT, (event: CustomEvent) => {
             if (this.id == event.detail.stageId) {
                 this.loadedBackgrounds++;
                 this.tryDoOnReady();
@@ -420,7 +426,7 @@ class Stage {
                 this.onReadyCallbacks = [];
             }
 
-            let event = new CustomEvent(STAGE_READY_EVENT, {
+            let event = new CustomEvent(Game.STAGE_READY_EVENT, {
                 detail: {
                     stage: this
                 }

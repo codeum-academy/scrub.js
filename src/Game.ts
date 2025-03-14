@@ -1,10 +1,3 @@
-const GAME_READY_EVENT = 'scrubjs.game.ready';
-const STAGE_READY_EVENT = 'scrubjs.stage.ready';
-const STAGE_BACKGROUND_READY_EVENT = 'scrubjs.stage.background_ready';
-const SPRITE_READY_EVENT = 'scrubjs.sprite.ready';
-const SPRITE_COSTUME_READY_EVENT = 'scrubjs.sprite.costume_ready';
-const SPRITE_SOUND_READY_EVENT = 'scrubjs.sprite.sound_ready';
-
 class Game {
     id: Symbol;
     canvas: HTMLCanvasElement;
@@ -15,12 +8,20 @@ class Game {
     mouse: Mouse;
     displayErrors = false;
 
+    static GAME_READY_EVENT = 'scrubjs.game.ready';
+    static STAGE_READY_EVENT = 'scrubjs.stage.ready';
+    static STAGE_BACKGROUND_READY_EVENT = 'scrubjs.stage.background_ready';
+    static SPRITE_READY_EVENT = 'scrubjs.sprite.ready';
+    static SPRITE_COSTUME_READY_EVENT = 'scrubjs.sprite.costume_ready';
+    static SPRITE_SOUND_READY_EVENT = 'scrubjs.sprite.sound_ready';
+
     private stages: Stage[] = [];
     private activeStage: Stage;
     private styles;
     private loadedStages = 0;
     private onReadyCallbacks = [];
     private onReadyPending = true;
+    protected running = false;
 
     constructor(width: number = null, height: number = null, canvasId: string = null) {
         this.id = Symbol();
@@ -41,7 +42,7 @@ class Game {
         this.canvas.width  = width;
         this.canvas.height = height;
         this.styles = new Styles(this.canvas, width, height);
-        this.mouse = new Mouse(this.styles);
+        this.mouse = new Mouse(this);
         this.context = this.canvas.getContext('2d');
 
         Registry.getInstance().set('game', this);
@@ -84,6 +85,8 @@ class Game {
 
         this.activeStage = stage;
         this.activeStage.run();
+
+        this.running = true;
     }
 
     isReady() {
@@ -98,6 +101,8 @@ class Game {
         if (this.activeStage && this.activeStage.running) {
             this.activeStage.stop();
         }
+
+        this.running = false;
     }
 
     get width(): number {
@@ -106,6 +111,18 @@ class Game {
 
     get height(): number {
         return this.canvas.height;
+    }
+
+    isInsideGame(x: number, y: number): boolean {
+        return x >= 0 && x <= this.width && y >= 0 && y <= this.height;
+    }
+
+    correctMouseX(mouseX: number): number {
+        return mouseX - this.styles.canvasRect.left;
+    }
+
+    correctMouseY(mouseY: number): number {
+        return mouseY - this.styles.canvasRect.top;
     }
 
     keyPressed(char: string): boolean {
@@ -141,7 +158,7 @@ class Game {
     }
 
     private addListeners() {
-        document.addEventListener(STAGE_READY_EVENT, (event: CustomEvent) => {
+        document.addEventListener(Game.STAGE_READY_EVENT, (event: CustomEvent) => {
             this.loadedStages++;
             this.tryDoOnReady();
         });
@@ -158,7 +175,7 @@ class Game {
                 this.onReadyCallbacks = [];
             }
 
-            let event = new CustomEvent(GAME_READY_EVENT, {
+            let event = new CustomEvent(Game.GAME_READY_EVENT, {
                 detail: {
                     game: this
                 }

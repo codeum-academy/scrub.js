@@ -7,14 +7,14 @@ class Sprite {
 
     private game: Game;
     private body: Polygon;
-    private costumeIndex = null;
+    protected costumeIndex = null;
     private costume: Costume = null;
-    private stage;
+    protected stage;
     private costumes = [];
     private costumeNames = [];
     private sounds = [];
     private soundNames = [];
-    private deleted = false;
+    protected deleted = false;
     private phrase;
     private phraseLiveTime = null;
     private _x = 0;
@@ -170,7 +170,7 @@ class Sprite {
 
         costume.ready = true;
 
-        event = new CustomEvent(SPRITE_COSTUME_READY_EVENT, {
+        event = new CustomEvent(Game.SPRITE_COSTUME_READY_EVENT, {
             detail: {
                 costume: costume,
                 spriteId: this.id
@@ -332,7 +332,7 @@ class Sprite {
 
         sound.load();
         sound.addEventListener('loadedmetadata', () => {
-            event = new CustomEvent(SPRITE_SOUND_READY_EVENT, {
+            event = new CustomEvent(Game.SPRITE_SOUND_READY_EVENT, {
                 detail: {
                     sound: sound,
                     spriteId: this.id
@@ -347,7 +347,7 @@ class Sprite {
         this.sounds.push(sound);
         this.soundNames.push(name);
 
-        event = new CustomEvent(SPRITE_SOUND_READY_EVENT, {
+        event = new CustomEvent(Game.SPRITE_SOUND_READY_EVENT, {
             detail: {
                 sound: sound,
                 spriteId: this.id
@@ -529,11 +529,15 @@ class Sprite {
     }
 
     touchMouse(result: CollisionResult = null): boolean {
+        return this.touchMousePoint(this.game.getMousePoint(), result);
+    }
+
+    touchMousePoint(mousePoint: Point, result: CollisionResult = null): boolean {
         if (!(this.body instanceof Body)) {
             return false;
         }
 
-        return this.body.collides(this.game.getMousePoint(), result);
+        return this.body.collides(mousePoint, result);
     }
 
     pointForward(sprite): void {
@@ -620,6 +624,49 @@ class Sprite {
 
             requestAnimationFrame(() => callback(this));
         }, timeout);
+    }
+
+    repeat(i: number, callback: CallableFunction, timeout = null, finishCallback: CallableFunction = null) {
+        if (this.deleted || this.stopped) {
+            finishCallback();
+
+            return;
+        }
+
+        if (i < 1) {
+            finishCallback();
+
+            return;
+        }
+
+        if (this.isReady()) {
+            const result = callback(this);
+            if (result === false) {
+                finishCallback();
+
+                return;
+            }
+
+            if (result > 0) {
+                timeout = result;
+            }
+        }
+
+        i--;
+        if (i < 1) {
+            finishCallback();
+
+            return;
+        }
+
+        if (timeout) {
+            setTimeout(() => {
+                requestAnimationFrame(() => this.repeat(i, callback, timeout, finishCallback));
+            }, timeout);
+
+        } else {
+            requestAnimationFrame(() => this.repeat(i, callback, timeout, finishCallback));
+        }
     }
 
     forever(callback, timeout = null): void {
@@ -792,7 +839,7 @@ class Sprite {
     }
 
     private addListeners() {
-        document.addEventListener(SPRITE_COSTUME_READY_EVENT, (event: CustomEvent) => {
+        document.addEventListener(Game.SPRITE_COSTUME_READY_EVENT, (event: CustomEvent) => {
             if (this.id == event.detail.spriteId) {
                 this.loadedCostumes++;
                 this.tryDoOnReady();
@@ -803,7 +850,7 @@ class Sprite {
             }
         });
 
-        document.addEventListener(SPRITE_SOUND_READY_EVENT, (event: CustomEvent) => {
+        document.addEventListener(Game.SPRITE_SOUND_READY_EVENT, (event: CustomEvent) => {
             if (this.id == event.detail.spriteId) {
                 this.loadedSounds++;
                 this.tryDoOnReady();
@@ -822,7 +869,7 @@ class Sprite {
                 this.onReadyCallbacks = [];
             }
 
-            let event = new CustomEvent(SPRITE_READY_EVENT, {
+            let event = new CustomEvent(Game.SPRITE_READY_EVENT, {
                 detail: {
                     sprite: this,
                     stageId: this.stage.id
