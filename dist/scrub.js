@@ -6,6 +6,68 @@ var Costume = (function () {
     }
     return Costume;
 }());
+var EventEmitter = (function () {
+    function EventEmitter() {
+        this.callbacksMap = new Map();
+        this.eventTarget = new EventTarget();
+    }
+    EventEmitter.prototype.once = function (name, type, callback) {
+        var _this = this;
+        if (this.callbacksMap.get(name)) {
+            return false;
+        }
+        var wrapper = function (event) {
+            if (typeof callback === 'function') {
+                callback(event);
+            }
+            else {
+                callback.handleEvent(event);
+            }
+            _this.eventTarget.removeEventListener(type, wrapper);
+            _this.remove(name);
+        };
+        this.eventTarget.addEventListener(type, wrapper);
+        this.callbacksMap.set(name, { type: type, callback: wrapper });
+        return true;
+    };
+    EventEmitter.prototype.on = function (name, type, callback) {
+        if (this.callbacksMap.get(name)) {
+            return false;
+        }
+        this.eventTarget.addEventListener(type, callback);
+        this.callbacksMap.set(name, { type: type, callback: callback });
+        return true;
+    };
+    EventEmitter.prototype.emit = function (type, detail) {
+        this.eventTarget.dispatchEvent(new CustomEvent(type, { detail: detail }));
+    };
+    EventEmitter.prototype.remove = function (name) {
+        var item = this.callbacksMap.get(name);
+        if (!item) {
+            return false;
+        }
+        this.eventTarget.removeEventListener(item.type, item.callback);
+        this.callbacksMap.delete(name);
+        return true;
+    };
+    EventEmitter.prototype.removeByType = function (type) {
+        var _this = this;
+        this.callbacksMap.forEach(function (item, itemName) {
+            if (type === item.type) {
+                _this.eventTarget.removeEventListener(item.type, item.callback);
+                _this.callbacksMap.delete(itemName);
+            }
+        });
+    };
+    EventEmitter.prototype.clearAll = function () {
+        var _this = this;
+        this.callbacksMap.forEach(function (item) {
+            _this.eventTarget.removeEventListener(item.type, item.callback);
+        });
+        this.callbacksMap.clear();
+    };
+    return EventEmitter;
+}());
 var __values = (this && this.__values) || function(o) {
     var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
     if (m) return m.call(o);
@@ -22,15 +84,17 @@ var Game = (function () {
         if (width === void 0) { width = null; }
         if (height === void 0) { height = null; }
         if (canvasId === void 0) { canvasId = null; }
+        this.displayErrors = false;
         this.debugMode = 'none';
         this.debugBody = false;
-        this.displayErrors = false;
         this.stages = [];
         this.loadedStages = 0;
         this.onReadyCallbacks = [];
         this.onReadyPending = true;
         this.running = false;
+        this.pendingRun = false;
         this.id = Symbol();
+        this.eventEmitter = new EventEmitter();
         this.keyboard = new Keyboard();
         if (canvasId) {
             var element = document.getElementById(canvasId);
@@ -66,6 +130,7 @@ var Game = (function () {
         return null;
     };
     Game.prototype.run = function (stage) {
+        var e_1, _a;
         if (stage === void 0) { stage = null; }
         if (!stage && this.stages.length) {
             stage = this.stages[0];
@@ -73,12 +138,28 @@ var Game = (function () {
         if (!stage) {
             this.throwError('You need create Stage instance before run game.');
         }
+        if (!this.running) {
+            try {
+                for (var _b = __values(this.stages), _c = _b.next(); !_c.done; _c = _b.next()) {
+                    var inStage = _c.value;
+                    inStage.ready();
+                }
+            }
+            catch (e_1_1) { e_1 = { error: e_1_1 }; }
+            finally {
+                try {
+                    if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
+                }
+                finally { if (e_1) throw e_1.error; }
+            }
+        }
         if (this.activeStage && this.activeStage.running) {
             this.activeStage.stop();
         }
+        this.running = false;
+        this.pendingRun = true;
         this.activeStage = stage;
-        this.activeStage.run();
-        this.running = true;
+        this.tryDoRun();
     };
     Game.prototype.isReady = function () {
         return this.loadedStages == this.stages.length;
@@ -125,7 +206,12 @@ var Game = (function () {
         this.keyboard.keyUp(char, callback);
     };
     Game.prototype.mouseDown = function () {
-        return this.mouse.isDown;
+        return this.mouse.isMouseDown(this.activeStage);
+    };
+    Game.prototype.mouseDownOnce = function () {
+        var isMouseDown = this.mouse.isMouseDown(this.activeStage);
+        this.mouse.clearMouseDown();
+        return isMouseDown;
     };
     Game.prototype.getMousePoint = function () {
         return this.mouse.getPoint();
@@ -141,13 +227,13 @@ var Game = (function () {
     };
     Game.prototype.addListeners = function () {
         var _this = this;
-        document.addEventListener(Game.STAGE_READY_EVENT, function (event) {
+        this.eventEmitter.on(Game.STAGE_READY_EVENT, Game.STAGE_READY_EVENT, function (event) {
             _this.loadedStages++;
             _this.tryDoOnReady();
         });
     };
     Game.prototype.tryDoOnReady = function () {
-        var e_1, _a;
+        var e_2, _a;
         if (this.isReady() && this.onReadyPending) {
             this.onReadyPending = false;
             if (this.onReadyCallbacks.length) {
@@ -157,24 +243,25 @@ var Game = (function () {
                         callback();
                     }
                 }
-                catch (e_1_1) { e_1 = { error: e_1_1 }; }
+                catch (e_2_1) { e_2 = { error: e_2_1 }; }
                 finally {
                     try {
                         if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
                     }
-                    finally { if (e_1) throw e_1.error; }
+                    finally { if (e_2) throw e_2.error; }
                 }
                 this.onReadyCallbacks = [];
             }
-            var event_1 = new CustomEvent(Game.GAME_READY_EVENT, {
-                detail: {
-                    game: this
-                }
-            });
-            document.dispatchEvent(event_1);
+            this.tryDoRun();
         }
     };
-    Game.GAME_READY_EVENT = 'scrubjs.game.ready';
+    Game.prototype.tryDoRun = function () {
+        if (this.pendingRun && !this.running && this.isReady()) {
+            this.running = true;
+            this.pendingRun = false;
+            this.activeStage.run();
+        }
+    };
     Game.STAGE_READY_EVENT = 'scrubjs.stage.ready';
     Game.STAGE_BACKGROUND_READY_EVENT = 'scrubjs.stage.background_ready';
     Game.SPRITE_READY_EVENT = 'scrubjs.sprite.ready';
@@ -472,7 +559,7 @@ var MultiplayerControl = (function () {
             if (_this.userKeydownCallbacks.has(char)) {
                 var callback_1 = _this.userKeydownCallbacks.get(char)[0];
                 var block_1 = function (isBlock, chars, mouse) {
-                    var e_2, _a;
+                    var e_3, _a;
                     if (chars === void 0) { chars = [char]; }
                     if (mouse === void 0) { mouse = false; }
                     if (mouse) {
@@ -484,12 +571,12 @@ var MultiplayerControl = (function () {
                             _this.userLockedChars[char_1.toUpperCase()] = isBlock;
                         }
                     }
-                    catch (e_2_1) { e_2 = { error: e_2_1 }; }
+                    catch (e_3_1) { e_3 = { error: e_3_1 }; }
                     finally {
                         try {
                             if (chars_1_1 && !chars_1_1.done && (_a = chars_1.return)) _a.call(chars_1);
                         }
-                        finally { if (e_2) throw e_2.error; }
+                        finally { if (e_3) throw e_3.error; }
                     }
                 };
                 var attempts_1 = 0;
@@ -522,7 +609,7 @@ var MultiplayerControl = (function () {
                 var mouseY_1 = data['mouseY'];
                 var syncData_1 = data['sync'];
                 var block_2 = function (isBlock, chars, mouse) {
-                    var e_3, _a;
+                    var e_4, _a;
                     if (chars === void 0) { chars = []; }
                     if (mouse === void 0) { mouse = true; }
                     if (mouse) {
@@ -534,12 +621,12 @@ var MultiplayerControl = (function () {
                             _this.userLockedChars[char.toUpperCase()] = isBlock;
                         }
                     }
-                    catch (e_3_1) { e_3 = { error: e_3_1 }; }
+                    catch (e_4_1) { e_4 = { error: e_4_1 }; }
                     finally {
                         try {
                             if (chars_2_1 && !chars_2_1.done && (_a = chars_2.return)) _a.call(chars_2);
                         }
-                        finally { if (e_3) throw e_3.error; }
+                        finally { if (e_4) throw e_4.error; }
                     }
                 };
                 var attempts_2 = 0;
@@ -608,7 +695,7 @@ var MultiplayerControl = (function () {
         document.addEventListener('mousedown', this.mousedownCallback);
     };
     MultiplayerControl.prototype.stop = function () {
-        var e_4, _a;
+        var e_5, _a;
         if (this.keydownCallback) {
             document.removeEventListener('keydown', this.keydownCallback);
         }
@@ -618,12 +705,12 @@ var MultiplayerControl = (function () {
                 this.connection.disconnect(JetcodeSocket.RECEIVE_DATA, connection);
             }
         }
-        catch (e_4_1) { e_4 = { error: e_4_1 }; }
+        catch (e_5_1) { e_5 = { error: e_5_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_4) throw e_4.error; }
+            finally { if (e_5) throw e_5.error; }
         }
     };
     MultiplayerControl.prototype.keyDown = function (char, callback, syncPackName, syncData) {
@@ -665,7 +752,7 @@ var __read = (this && this.__read) || function (o, n) {
 };
 var Sprite = (function () {
     function Sprite(stage, layer, costumePaths, soundPaths) {
-        var e_5, _a, e_6, _b;
+        var e_6, _a, e_7, _b;
         if (stage === void 0) { stage = null; }
         if (layer === void 0) { layer = 1; }
         if (costumePaths === void 0) { costumePaths = []; }
@@ -680,18 +767,20 @@ var Sprite = (function () {
         this.costumeNames = [];
         this.sounds = [];
         this.soundNames = [];
-        this.deleted = false;
         this.phraseLiveTime = null;
         this._x = 0;
         this._y = 0;
         this._direction = 0;
         this._hidden = false;
+        this._deleted = false;
         this._stopped = true;
         this.loadedCostumes = 0;
         this.loadedSounds = 0;
         this.onReadyCallbacks = [];
         this.onReadyPending = true;
+        this.scheduledCallbacks = [];
         this.id = Symbol();
+        this.eventEmitter = new EventEmitter();
         if (!Registry.getInstance().has('game')) {
             this.game.throwError('You need create Game instance before Sprite instance.');
         }
@@ -713,12 +802,12 @@ var Sprite = (function () {
                 this.addCostume(costumePath);
             }
         }
-        catch (e_5_1) { e_5 = { error: e_5_1 }; }
+        catch (e_6_1) { e_6 = { error: e_6_1 }; }
         finally {
             try {
                 if (costumePaths_1_1 && !costumePaths_1_1.done && (_a = costumePaths_1.return)) _a.call(costumePaths_1);
             }
-            finally { if (e_5) throw e_5.error; }
+            finally { if (e_6) throw e_6.error; }
         }
         try {
             for (var soundPaths_1 = __values(soundPaths), soundPaths_1_1 = soundPaths_1.next(); !soundPaths_1_1.done; soundPaths_1_1 = soundPaths_1.next()) {
@@ -726,13 +815,14 @@ var Sprite = (function () {
                 this.addSound(soundPath);
             }
         }
-        catch (e_6_1) { e_6 = { error: e_6_1 }; }
+        catch (e_7_1) { e_7 = { error: e_7_1 }; }
         finally {
             try {
                 if (soundPaths_1_1 && !soundPaths_1_1.done && (_b = soundPaths_1.return)) _b.call(soundPaths_1);
             }
-            finally { if (e_6) throw e_6.error; }
+            finally { if (e_7) throw e_7.error; }
         }
+        this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
         this.addListeners();
     }
     Sprite.prototype.isReady = function () {
@@ -761,12 +851,14 @@ var Sprite = (function () {
         this.costumeNames.push(name);
         var image = new Image();
         image.src = costumePath;
-        image.addEventListener('load', function () {
+        var onLoadImage = function () {
             if (_this.deleted) {
                 return;
             }
             _this.addCostumeByImage(costume, image, x, y, width, height, paddingTop, paddingRight, paddingBottom, paddingLeft);
-        }, false);
+            image.removeEventListener('load', onLoadImage);
+        };
+        image.addEventListener('load', onLoadImage);
         image.addEventListener('error', function () {
             _this.game.throwError('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
         });
@@ -804,13 +896,10 @@ var Sprite = (function () {
             [(costume.width / 2) * -1 + paddingLeft * -1, costume.height / 2 + paddingBottom]
         ]);
         costume.ready = true;
-        event = new CustomEvent(Game.SPRITE_COSTUME_READY_EVENT, {
-            detail: {
-                costume: costume,
-                spriteId: this.id
-            }
+        this.eventEmitter.emit(Game.SPRITE_COSTUME_READY_EVENT, {
+            costume: costume,
+            spriteId: this.id
         });
-        document.dispatchEvent(event);
     };
     Sprite.prototype.addCostumes = function (costumePath, name, cols, rows, limit, offset, paddingTop, paddingRight, paddingBottom, paddingLeft) {
         var _this = this;
@@ -827,7 +916,7 @@ var Sprite = (function () {
         if (!name) {
             name = 'No name';
         }
-        image.addEventListener('load', function () {
+        var onLoadImage = function () {
             image.naturalWidth;
             image.naturalHeight;
             var chunkWidth = image.naturalWidth / cols;
@@ -869,32 +958,20 @@ var Sprite = (function () {
                 x = 0;
                 y += chunkHeight;
             }
-        }, false);
+            image.removeEventListener('load', onLoadImage);
+        };
+        image.addEventListener('load', onLoadImage);
     };
     Sprite.prototype.switchCostume = function (costumeIndex) {
-        var _this = this;
+        if (this.deleted) {
+            return;
+        }
         var costume = this.costumes[costumeIndex];
         if (costume instanceof Costume && costume.ready) {
             this.costumeIndex = costumeIndex;
             this.costume = costume;
-            if (this.singleBody) {
-                if (!(this.body instanceof Polygon)) {
-                    this.createBody(costume);
-                }
-                costume.image.addEventListener('load', function () {
-                    _this.createBody(costume);
-                }, false);
-            }
-            else {
-                if (this.body instanceof Polygon) {
-                    this.removeBody();
-                }
-                if (costume.body instanceof Polygon) {
-                    this.createBody(costume);
-                }
-                costume.image.addEventListener('load', function () {
-                    _this.createBody(costume);
-                }, false);
+            if (!(this.body instanceof Polygon)) {
+                this.createBody(costume);
             }
         }
     };
@@ -908,6 +985,9 @@ var Sprite = (function () {
         }
     };
     Sprite.prototype.nextCostume = function () {
+        if (this.deleted) {
+            return;
+        }
         var nextCostume = this.costumeIndex + 1;
         if (nextCostume > this.costumes.length - 1) {
             nextCostume = 0;
@@ -925,26 +1005,22 @@ var Sprite = (function () {
         this.sounds.push(sound);
         this.soundNames.push(name);
         sound.load();
-        sound.addEventListener('loadedmetadata', function () {
-            event = new CustomEvent(Game.SPRITE_SOUND_READY_EVENT, {
-                detail: {
-                    sound: sound,
-                    spriteId: _this.id
-                }
+        var onLoadSound = function () {
+            _this.eventEmitter.emit(Game.SPRITE_SOUND_READY_EVENT, {
+                sound: sound,
+                spriteId: _this.id
             });
-            document.dispatchEvent(event);
-        }, false);
+            sound.removeEventListener('loadedmetadata', onLoadSound);
+        };
+        sound.addEventListener('loadedmetadata', onLoadSound);
     };
     Sprite.prototype.cloneSound = function (sound, name) {
         this.sounds.push(sound);
         this.soundNames.push(name);
-        event = new CustomEvent(Game.SPRITE_SOUND_READY_EVENT, {
-            detail: {
-                sound: sound,
-                spriteId: this.id
-            }
+        this.eventEmitter.emit(Game.SPRITE_SOUND_READY_EVENT, {
+            sound: sound,
+            spriteId: this.id
         });
-        document.dispatchEvent(event);
     };
     Sprite.prototype.playSound = function (soundIndex, volume, currentTime) {
         if (volume === void 0) { volume = null; }
@@ -1010,6 +1086,8 @@ var Sprite = (function () {
             this.hidden ||
             sprite.stopped ||
             this.stopped ||
+            sprite.deleted ||
+            this.deleted ||
             !(sprite.getBody() instanceof Body) ||
             !(this.body instanceof Body)) {
             return false;
@@ -1017,8 +1095,11 @@ var Sprite = (function () {
         return this.body.collides(sprite.getBody(), result);
     };
     Sprite.prototype.touchSprites = function (sprites, result) {
-        var e_7, _a;
+        var e_8, _a;
         if (result === void 0) { result = null; }
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
+            return false;
+        }
         try {
             for (var sprites_1 = __values(sprites), sprites_1_1 = sprites_1.next(); !sprites_1_1.done; sprites_1_1 = sprites_1.next()) {
                 var sprite = sprites_1_1.value;
@@ -1027,19 +1108,19 @@ var Sprite = (function () {
                 }
             }
         }
-        catch (e_7_1) { e_7 = { error: e_7_1 }; }
+        catch (e_8_1) { e_8 = { error: e_8_1 }; }
         finally {
             try {
                 if (sprites_1_1 && !sprites_1_1.done && (_a = sprites_1.return)) _a.call(sprites_1);
             }
-            finally { if (e_7) throw e_7.error; }
+            finally { if (e_8) throw e_8.error; }
         }
         return false;
     };
     Sprite.prototype.touchPotentialSprites = function (sprites, result) {
-        var e_8, _a, e_9, _b;
+        var e_9, _a, e_10, _b;
         if (result === void 0) { result = null; }
-        if (!(this.body instanceof Polygon)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
         var potentials = this.body.potentials();
@@ -1055,12 +1136,12 @@ var Sprite = (function () {
                 }
             }
         }
-        catch (e_8_1) { e_8 = { error: e_8_1 }; }
+        catch (e_9_1) { e_9 = { error: e_9_1 }; }
         finally {
             try {
                 if (sprites_2_1 && !sprites_2_1.done && (_a = sprites_2.return)) _a.call(sprites_2);
             }
-            finally { if (e_8) throw e_8.error; }
+            finally { if (e_9) throw e_9.error; }
         }
         try {
             for (var potentialSprites_1 = __values(potentialSprites), potentialSprites_1_1 = potentialSprites_1.next(); !potentialSprites_1_1.done; potentialSprites_1_1 = potentialSprites_1.next()) {
@@ -1070,18 +1151,18 @@ var Sprite = (function () {
                 }
             }
         }
-        catch (e_9_1) { e_9 = { error: e_9_1 }; }
+        catch (e_10_1) { e_10 = { error: e_10_1 }; }
         finally {
             try {
                 if (potentialSprites_1_1 && !potentialSprites_1_1.done && (_b = potentialSprites_1.return)) _b.call(potentialSprites_1);
             }
-            finally { if (e_9) throw e_9.error; }
+            finally { if (e_10) throw e_10.error; }
         }
         return false;
     };
     Sprite.prototype.touchEdge = function (result) {
         if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
         if (this.body.collides(this.stage.getTopEdge(), result)) {
@@ -1100,28 +1181,28 @@ var Sprite = (function () {
     };
     Sprite.prototype.touchTopEdge = function (result) {
         if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
         return this.body.collides(this.stage.getTopEdge(), result);
     };
     Sprite.prototype.touchLeftEdge = function (result) {
         if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
         return this.body.collides(this.stage.getLeftEdge(), result);
     };
     Sprite.prototype.touchRightEdge = function (result) {
         if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
         return this.body.collides(this.stage.getRightEdge(), result);
     };
     Sprite.prototype.touchBottomEdge = function (result) {
         if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
         return this.body.collides(this.stage.getBottomEdge(), result);
@@ -1132,7 +1213,7 @@ var Sprite = (function () {
     };
     Sprite.prototype.touchMousePoint = function (mousePoint, result) {
         if (result === void 0) { result = null; }
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
         return this.body.collides(mousePoint, result);
@@ -1172,7 +1253,7 @@ var Sprite = (function () {
         return null;
     };
     Sprite.prototype.createClone = function (stage) {
-        var e_10, _a, e_11, _b;
+        var e_11, _a, e_12, _b;
         if (stage === void 0) { stage = null; }
         if (!this.isReady()) {
             this.game.throwError('Sprite cannot be cloned because one is not ready.');
@@ -1189,18 +1270,20 @@ var Sprite = (function () {
         clone.y = this.y;
         clone.direction = this.direction;
         clone.hidden = this.hidden;
+        clone._deleted = this.deleted;
+        clone._stopped = this.stopped;
         try {
             for (var _c = __values(this.costumes), _d = _c.next(); !_d.done; _d = _c.next()) {
                 var costume = _d.value;
                 clone.cloneCostume(costume, this.getCostumeName());
             }
         }
-        catch (e_10_1) { e_10 = { error: e_10_1 }; }
+        catch (e_11_1) { e_11 = { error: e_11_1 }; }
         finally {
             try {
                 if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
             }
-            finally { if (e_10) throw e_10.error; }
+            finally { if (e_11) throw e_11.error; }
         }
         clone.switchCostume(this.costumeIndex);
         try {
@@ -1209,96 +1292,53 @@ var Sprite = (function () {
                 clone.cloneSound(sound, this.soundNames[soundIndex]);
             }
         }
-        catch (e_11_1) { e_11 = { error: e_11_1 }; }
+        catch (e_12_1) { e_12 = { error: e_12_1 }; }
         finally {
             try {
                 if (_f && !_f.done && (_b = _e.return)) _b.call(_e);
             }
-            finally { if (e_11) throw e_11.error; }
+            finally { if (e_12) throw e_12.error; }
         }
-        clone.deleted = this.deleted;
-        clone._stopped = this.stopped;
         return clone;
     };
     Sprite.prototype.timeout = function (callback, timeout) {
-        var _this = this;
-        setTimeout(function () {
-            if (_this.deleted || _this.stopped) {
-                return;
-            }
-            requestAnimationFrame(function () { return callback(_this); });
-        }, timeout);
+        this.repeat(callback, 1, null, timeout, undefined);
     };
-    Sprite.prototype.repeat = function (i, callback, timeout, finishCallback) {
-        var _this = this;
+    Sprite.prototype.repeat = function (callback, repeat, interval, timeout, finishCallback) {
+        if (interval === void 0) { interval = null; }
         if (timeout === void 0) { timeout = null; }
-        if (finishCallback === void 0) { finishCallback = null; }
-        if (this.deleted || this.stopped) {
-            finishCallback();
-            return;
-        }
-        if (i < 1) {
-            finishCallback();
-            return;
-        }
-        if (this.isReady()) {
-            var result = callback(this);
-            if (result === false) {
-                finishCallback();
-                return;
-            }
-            if (result > 0) {
-                timeout = result;
-            }
-        }
-        i--;
-        if (i < 1) {
-            finishCallback();
-            return;
-        }
+        var state = new ScheduledState(interval, repeat, 0);
         if (timeout) {
-            setTimeout(function () {
-                requestAnimationFrame(function () { return _this.repeat(i, callback, timeout, finishCallback); });
-            }, timeout);
+            timeout = Date.now() + timeout;
         }
-        else {
-            requestAnimationFrame(function () { return _this.repeat(i, callback, timeout, finishCallback); });
-        }
+        this.scheduledCallbacks.push(new ScheduledCallbackItem(callback, state, timeout, finishCallback));
     };
-    Sprite.prototype.forever = function (callback, timeout) {
-        var _this = this;
+    Sprite.prototype.forever = function (callback, interval, timeout, finishCallback) {
+        if (interval === void 0) { interval = null; }
         if (timeout === void 0) { timeout = null; }
-        if (this.deleted || this.stopped) {
-            return;
-        }
-        if (this.isReady()) {
-            var result = callback(this);
-            if (result === false) {
-                return;
-            }
-            if (result > 0) {
-                timeout = result;
-            }
-        }
+        var state = new ScheduledState(interval);
         if (timeout) {
-            setTimeout(function () {
-                requestAnimationFrame(function () { return _this.forever(callback, timeout); });
-            }, timeout);
+            timeout = Date.now() + timeout;
         }
-        else {
-            requestAnimationFrame(function () { return _this.forever(callback); });
-        }
+        this.scheduledCallbacks.push(new ScheduledCallbackItem(callback, state, timeout, finishCallback));
+    };
+    Sprite.prototype.update = function (diffTime) {
+        this.scheduledCallbacks = this.scheduledCallbacks.filter(this.scheduledCallbackExecutor.execute(Date.now(), diffTime));
     };
     Sprite.prototype.delete = function () {
         if (this.deleted) {
             return;
         }
+        this.eventEmitter.clearAll();
+        this.removeBody();
         this.stage.removeSprite(this);
+        this.scheduledCallbackExecutor = null;
+        this.scheduledCallbacks = [];
         var props = Object.keys(this);
         for (var i = 0; i < props.length; i++) {
             delete this[props[i]];
         }
-        this.deleted = true;
+        this._deleted = true;
     };
     Sprite.prototype.run = function () {
         this._stopped = false;
@@ -1410,6 +1450,13 @@ var Sprite = (function () {
         enumerable: false,
         configurable: true
     });
+    Object.defineProperty(Sprite.prototype, "deleted", {
+        get: function () {
+            return this._deleted;
+        },
+        enumerable: false,
+        configurable: true
+    });
     Object.defineProperty(Sprite.prototype, "stopped", {
         get: function () {
             return this._stopped;
@@ -1431,7 +1478,7 @@ var Sprite = (function () {
     });
     Sprite.prototype.addListeners = function () {
         var _this = this;
-        document.addEventListener(Game.SPRITE_COSTUME_READY_EVENT, function (event) {
+        this.eventEmitter.on(Game.SPRITE_COSTUME_READY_EVENT, Game.SPRITE_COSTUME_READY_EVENT, function (event) {
             if (_this.id == event.detail.spriteId) {
                 _this.loadedCostumes++;
                 _this.tryDoOnReady();
@@ -1440,7 +1487,7 @@ var Sprite = (function () {
                 }
             }
         });
-        document.addEventListener(Game.SPRITE_SOUND_READY_EVENT, function (event) {
+        this.eventEmitter.on(Game.SPRITE_SOUND_READY_EVENT, Game.SPRITE_SOUND_READY_EVENT, function (event) {
             if (_this.id == event.detail.spriteId) {
                 _this.loadedSounds++;
                 _this.tryDoOnReady();
@@ -1448,7 +1495,7 @@ var Sprite = (function () {
         });
     };
     Sprite.prototype.tryDoOnReady = function () {
-        var e_12, _a;
+        var e_13, _a;
         if (this.isReady() && this.onReadyPending) {
             this.onReadyPending = false;
             if (this.onReadyCallbacks.length) {
@@ -1458,22 +1505,19 @@ var Sprite = (function () {
                         callback();
                     }
                 }
-                catch (e_12_1) { e_12 = { error: e_12_1 }; }
+                catch (e_13_1) { e_13 = { error: e_13_1 }; }
                 finally {
                     try {
                         if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
                     }
-                    finally { if (e_12) throw e_12.error; }
+                    finally { if (e_13) throw e_13.error; }
                 }
                 this.onReadyCallbacks = [];
             }
-            var event_2 = new CustomEvent(Game.SPRITE_READY_EVENT, {
-                detail: {
-                    sprite: this,
-                    stageId: this.stage.id
-                }
+            this.stage.eventEmitter.emit(Game.SPRITE_READY_EVENT, {
+                sprite: this,
+                stageId: this.stage.id
             });
-            document.dispatchEvent(event_2);
         }
     };
     Sprite.prototype.removeBody = function () {
@@ -1643,7 +1687,7 @@ var MultiplayerGame = (function (_super) {
         }
     };
     MultiplayerGame.prototype.stop = function () {
-        var e_13, _a;
+        var e_14, _a;
         _super.prototype.stop.call(this);
         try {
             for (var _b = __values(this.players), _c = _b.next(); !_c.done; _c = _b.next()) {
@@ -1651,12 +1695,12 @@ var MultiplayerGame = (function (_super) {
                 player.delete();
             }
         }
-        catch (e_13_1) { e_13 = { error: e_13_1 }; }
+        catch (e_14_1) { e_14 = { error: e_14_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_13) throw e_13.error; }
+            finally { if (e_14) throw e_14.error; }
         }
         this.players = [];
     };
@@ -1690,13 +1734,13 @@ var MultiplayerGame = (function (_super) {
         return __spreadArray(__spreadArray(__spreadArray([], __read(multiplayerSprites), false), __read(players), false), __read(sharedObjects), false);
     };
     MultiplayerGame.prototype.syncObjects = function (syncData, deltaTime) {
-        var e_14, _a, e_15, _b;
+        var e_15, _a, e_16, _b;
         var gameAllSyncObjects = this.getSyncObjects();
         try {
             for (var _c = __values(Object.entries(syncData)), _d = _c.next(); !_d.done; _d = _c.next()) {
                 var _e = __read(_d.value, 2), syncPackName = _e[0], syncObjectsData = _e[1];
                 try {
-                    for (var gameAllSyncObjects_1 = (e_15 = void 0, __values(gameAllSyncObjects)), gameAllSyncObjects_1_1 = gameAllSyncObjects_1.next(); !gameAllSyncObjects_1_1.done; gameAllSyncObjects_1_1 = gameAllSyncObjects_1.next()) {
+                    for (var gameAllSyncObjects_1 = (e_16 = void 0, __values(gameAllSyncObjects)), gameAllSyncObjects_1_1 = gameAllSyncObjects_1.next(); !gameAllSyncObjects_1_1.done; gameAllSyncObjects_1_1 = gameAllSyncObjects_1.next()) {
                         var syncObject = gameAllSyncObjects_1_1.value;
                         if (syncObjectsData[syncObject.getMultiplayerName()]) {
                             var syncPackData = syncObjectsData[syncObject.getMultiplayerName()];
@@ -1704,25 +1748,25 @@ var MultiplayerGame = (function (_super) {
                         }
                     }
                 }
-                catch (e_15_1) { e_15 = { error: e_15_1 }; }
+                catch (e_16_1) { e_16 = { error: e_16_1 }; }
                 finally {
                     try {
                         if (gameAllSyncObjects_1_1 && !gameAllSyncObjects_1_1.done && (_b = gameAllSyncObjects_1.return)) _b.call(gameAllSyncObjects_1);
                     }
-                    finally { if (e_15) throw e_15.error; }
+                    finally { if (e_16) throw e_16.error; }
                 }
             }
         }
-        catch (e_14_1) { e_14 = { error: e_14_1 }; }
+        catch (e_15_1) { e_15 = { error: e_15_1 }; }
         finally {
             try {
                 if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
             }
-            finally { if (e_14) throw e_14.error; }
+            finally { if (e_15) throw e_15.error; }
         }
     };
     MultiplayerGame.prototype.packSyncData = function (packName, syncObjects) {
-        var e_16, _a;
+        var e_17, _a;
         var syncObjectsData = {};
         try {
             for (var syncObjects_1 = __values(syncObjects), syncObjects_1_1 = syncObjects_1.next(); !syncObjects_1_1.done; syncObjects_1_1 = syncObjects_1.next()) {
@@ -1731,12 +1775,12 @@ var MultiplayerGame = (function (_super) {
                 syncObjectsData[syncObject.getMultiplayerName()]['syncId'] = syncObject.increaseSyncId();
             }
         }
-        catch (e_16_1) { e_16 = { error: e_16_1 }; }
+        catch (e_17_1) { e_17 = { error: e_17_1 }; }
         finally {
             try {
                 if (syncObjects_1_1 && !syncObjects_1_1.done && (_a = syncObjects_1.return)) _a.call(syncObjects_1);
             }
-            finally { if (e_16) throw e_16.error; }
+            finally { if (e_17) throw e_17.error; }
         }
         var result = {};
         result[packName] = syncObjectsData;
@@ -1863,7 +1907,7 @@ var MultiplayerSprite = (function (_super) {
         return Math.random().toString(36).slice(2) + '-' + Math.random().toString(36).slice(2);
     };
     MultiplayerSprite.prototype.getCustomerProperties = function () {
-        var e_17, _a;
+        var e_18, _a;
         var data = {};
         try {
             for (var _b = __values(Object.keys(this)), _c = _b.next(); !_c.done; _c = _b.next()) {
@@ -1874,12 +1918,12 @@ var MultiplayerSprite = (function (_super) {
                 data[key] = this[key];
             }
         }
-        catch (e_17_1) { e_17 = { error: e_17_1 }; }
+        catch (e_18_1) { e_18 = { error: e_18_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_17) throw e_17.error; }
+            finally { if (e_18) throw e_18.error; }
         }
         return data;
     };
@@ -1898,7 +1942,7 @@ var MultiplayerSprite = (function (_super) {
             size: this.size,
             rotateStyle: this.rotateStyle,
             costumeIndex: this.costumeIndex,
-            deleted: this.deleted,
+            deleted: this._deleted,
             x: this.x,
             y: this.y,
             direction: this.direction,
@@ -1948,7 +1992,7 @@ var OrphanSharedData = (function () {
         return this.parent.increaseSyncId();
     };
     OrphanSharedData.prototype.getSyncData = function () {
-        var e_18, _a;
+        var e_19, _a;
         var syncData = {};
         try {
             for (var _b = __values(this.properties), _c = _b.next(); !_c.done; _c = _b.next()) {
@@ -1958,12 +2002,12 @@ var OrphanSharedData = (function () {
                 }
             }
         }
-        catch (e_18_1) { e_18 = { error: e_18_1 }; }
+        catch (e_19_1) { e_19 = { error: e_19_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_18) throw e_18.error; }
+            finally { if (e_19) throw e_19.error; }
         }
         return syncData;
     };
@@ -2094,7 +2138,7 @@ var Player = (function () {
         return this.syncId;
     };
     Player.prototype.getSyncData = function () {
-        var e_19, _a;
+        var e_20, _a;
         var data = {};
         try {
             for (var _b = __values(Object.keys(this)), _c = _b.next(); !_c.done; _c = _b.next()) {
@@ -2105,12 +2149,12 @@ var Player = (function () {
                 data[key] = this[key];
             }
         }
-        catch (e_19_1) { e_19 = { error: e_19_1 }; }
+        catch (e_20_1) { e_20 = { error: e_20_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_19) throw e_19.error; }
+            finally { if (e_20) throw e_20.error; }
         }
         return data;
     };
@@ -2141,6 +2185,65 @@ var Player = (function () {
     };
     return Player;
 }());
+var ScheduledCallbackExecutor = (function () {
+    function ScheduledCallbackExecutor(context) {
+        this.context = context;
+    }
+    ScheduledCallbackExecutor.prototype.execute = function (now, diffTime) {
+        var _this = this;
+        return function (item) {
+            var state = item.state;
+            if (_this.context instanceof Sprite) {
+                if (_this.context.deleted) {
+                    return false;
+                }
+                if (_this.context.stopped) {
+                    return true;
+                }
+            }
+            if (item.timeout && diffTime) {
+                item.timeout += diffTime;
+            }
+            if (!item.timeout || item.timeout <= now) {
+                var result = item.callback(_this.context, state);
+                if (state.maxIterations) {
+                    state.currentIteration++;
+                }
+                var isFinished = result === false ||
+                    (item.timeout && !state.interval && !state.maxIterations) ||
+                    (state.maxIterations && state.currentIteration >= state.maxIterations);
+                if (isFinished) {
+                    if (item.finishCallback) {
+                        item.finishCallback(_this.context, state);
+                    }
+                    return false;
+                }
+                if (state.interval) {
+                    item.timeout = now + state.interval;
+                }
+            }
+            return true;
+        };
+    };
+    return ScheduledCallbackExecutor;
+}());
+var ScheduledCallbackItem = (function () {
+    function ScheduledCallbackItem(callback, state, timeout, finishCallback) {
+        this.callback = callback;
+        this.state = state;
+        this.timeout = timeout;
+        this.finishCallback = finishCallback;
+    }
+    return ScheduledCallbackItem;
+}());
+var ScheduledState = (function () {
+    function ScheduledState(interval, maxIterations, currentIteration) {
+        this.interval = interval;
+        this.maxIterations = maxIterations;
+        this.currentIteration = currentIteration;
+    }
+    return ScheduledState;
+}());
 var SharedData = (function () {
     function SharedData(multiplayerName) {
         this.multiplayerName = 'data_' + multiplayerName;
@@ -2165,7 +2268,7 @@ var SharedData = (function () {
         return this.syncId;
     };
     SharedData.prototype.getSyncData = function () {
-        var e_20, _a;
+        var e_21, _a;
         var data = {};
         try {
             for (var _b = __values(Object.keys(this)), _c = _b.next(); !_c.done; _c = _b.next()) {
@@ -2173,12 +2276,12 @@ var SharedData = (function () {
                 data[key] = this[key];
             }
         }
-        catch (e_20_1) { e_20 = { error: e_20_1 }; }
+        catch (e_21_1) { e_21 = { error: e_21_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_20) throw e_20.error; }
+            finally { if (e_21) throw e_21.error; }
         }
         return data;
     };
@@ -2225,9 +2328,11 @@ var Stage = (function () {
         this.onReadyCallbacks = [];
         this.onStartCallbacks = [];
         this.onReadyPending = true;
-        this._stopped = false;
+        this.scheduledCallbacks = [];
+        this._stopped = true;
         this._running = false;
         this.id = Symbol();
+        this.eventEmitter = new EventEmitter();
         if (!Registry.getInstance().has('game')) {
             this.game.throwError('You need create Game instance before Stage instance.');
         }
@@ -2241,6 +2346,8 @@ var Stage = (function () {
         this.padding = padding;
         this.addListeners();
         this.game.addStage(this);
+        this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
+        this.stoppedTime = Date.now();
     }
     Object.defineProperty(Stage.prototype, "padding", {
         get: function () {
@@ -2315,15 +2422,14 @@ var Stage = (function () {
         var background = new Image();
         background.src = backgroundPath;
         this.backgrounds.push(background);
-        background.addEventListener('load', function () {
-            event = new CustomEvent(Game.STAGE_BACKGROUND_READY_EVENT, {
-                detail: {
-                    background: background,
-                    stageId: _this.id
-                }
+        var onLoad = function () {
+            _this.eventEmitter.emit(Game.STAGE_BACKGROUND_READY_EVENT, {
+                background: background,
+                stageId: _this.id
             });
-            document.dispatchEvent(event);
-        });
+            background.removeEventListener('load', onLoad);
+        };
+        background.addEventListener('load', onLoad);
         background.addEventListener('error', function () {
             _this.game.throwError('Background image "' + backgroundPath + '" was not loaded. Check that the path is correct.');
         });
@@ -2376,8 +2482,10 @@ var Stage = (function () {
         layerDrawings.push(callback);
     };
     Stage.prototype.render = function () {
-        var e_21, _a, e_22, _b, e_23, _c;
+        var e_22, _a, e_23, _b, e_24, _c;
         var _this = this;
+        this.update();
+        this.collisionSystem.update();
         this.context.clearRect(0, 0, this.width, this.height);
         if (this.backgroundColor) {
             this.context.fillStyle = this.backgroundColor;
@@ -2386,7 +2494,6 @@ var Stage = (function () {
         if (this.background) {
             this.context.drawImage(this.background, 0, 0, this.width, this.height);
         }
-        this.collisionSystem.update();
         if (this.game.debugBody) {
             this.collisionSystem.draw(this.context);
             this.context.stroke();
@@ -2400,17 +2507,17 @@ var Stage = (function () {
                 if (this.drawings.has(layer)) {
                     var layerDrawings = this.drawings.get(layer);
                     try {
-                        for (var layerDrawings_1 = (e_22 = void 0, __values(layerDrawings)), layerDrawings_1_1 = layerDrawings_1.next(); !layerDrawings_1_1.done; layerDrawings_1_1 = layerDrawings_1.next()) {
+                        for (var layerDrawings_1 = (e_23 = void 0, __values(layerDrawings)), layerDrawings_1_1 = layerDrawings_1.next(); !layerDrawings_1_1.done; layerDrawings_1_1 = layerDrawings_1.next()) {
                             var drawing = layerDrawings_1_1.value;
                             drawing(this.context);
                         }
                     }
-                    catch (e_22_1) { e_22 = { error: e_22_1 }; }
+                    catch (e_23_1) { e_23 = { error: e_23_1 }; }
                     finally {
                         try {
                             if (layerDrawings_1_1 && !layerDrawings_1_1.done && (_b = layerDrawings_1.return)) _b.call(layerDrawings_1);
                         }
-                        finally { if (e_22) throw e_22.error; }
+                        finally { if (e_23) throw e_23.error; }
                     }
                 }
                 if (this.sprites.has(layer)) {
@@ -2457,95 +2564,86 @@ var Stage = (function () {
                     };
                     var this_1 = this;
                     try {
-                        for (var layerSprites_1 = (e_23 = void 0, __values(layerSprites)), layerSprites_1_1 = layerSprites_1.next(); !layerSprites_1_1.done; layerSprites_1_1 = layerSprites_1.next()) {
+                        for (var layerSprites_1 = (e_24 = void 0, __values(layerSprites)), layerSprites_1_1 = layerSprites_1.next(); !layerSprites_1_1.done; layerSprites_1_1 = layerSprites_1.next()) {
                             var sprite = layerSprites_1_1.value;
                             _loop_1(sprite);
                         }
                     }
-                    catch (e_23_1) { e_23 = { error: e_23_1 }; }
+                    catch (e_24_1) { e_24 = { error: e_24_1 }; }
                     finally {
                         try {
                             if (layerSprites_1_1 && !layerSprites_1_1.done && (_c = layerSprites_1.return)) _c.call(layerSprites_1);
                         }
-                        finally { if (e_23) throw e_23.error; }
+                        finally { if (e_24) throw e_24.error; }
                     }
                 }
             }
         }
-        catch (e_21_1) { e_21 = { error: e_21_1 }; }
+        catch (e_22_1) { e_22 = { error: e_22_1 }; }
         finally {
             try {
                 if (layers_1_1 && !layers_1_1.done && (_a = layers_1.return)) _a.call(layers_1);
             }
-            finally { if (e_21) throw e_21.error; }
+            finally { if (e_22) throw e_22.error; }
         }
     };
     Stage.prototype.timeout = function (callback, timeout) {
-        var _this = this;
-        setTimeout(function () {
-            if (_this._stopped) {
-                return;
-            }
-            requestAnimationFrame(function () { return callback(_this); });
-        }, timeout);
+        this.repeat(callback, 1, null, timeout, undefined);
     };
-    Stage.prototype.forever = function (callback, timeout) {
-        var _this = this;
+    Stage.prototype.repeat = function (callback, repeat, interval, timeout, finishCallback) {
+        if (interval === void 0) { interval = null; }
         if (timeout === void 0) { timeout = null; }
-        if (this._stopped) {
-            return;
-        }
-        if (this.isReady()) {
-            var result = callback(this);
-            if (result === false) {
-                return;
-            }
-            if (result > 0) {
-                timeout = result;
-            }
-        }
+        var state = new ScheduledState(interval, repeat, 0);
         if (timeout) {
-            setTimeout(function () {
-                requestAnimationFrame(function () { return _this.forever(callback, timeout); });
-            }, timeout);
+            timeout = Date.now() + timeout;
         }
-        else {
-            requestAnimationFrame(function () { return _this.forever(callback); });
+        this.scheduledCallbacks.push(new ScheduledCallbackItem(callback, state, timeout, finishCallback));
+    };
+    Stage.prototype.forever = function (callback, interval, timeout, finishCallback) {
+        if (interval === void 0) { interval = null; }
+        if (timeout === void 0) { timeout = null; }
+        var state = new ScheduledState(interval);
+        if (timeout) {
+            timeout = Date.now() + timeout;
         }
+        this.scheduledCallbacks.push(new ScheduledCallbackItem(callback, state, timeout, finishCallback));
     };
     Stage.prototype.isReady = function () {
         return this.addedSprites == this.loadedSprites && this.loadedBackgrounds == this.backgrounds.length;
     };
     Stage.prototype.run = function () {
-        var e_24, _a, e_25, _b;
-        this._running = true;
+        var e_25, _a, e_26, _b;
         this._stopped = false;
         try {
             for (var _c = __values(this.sprites.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
                 var layerSprites = _d.value;
                 try {
-                    for (var layerSprites_2 = (e_25 = void 0, __values(layerSprites)), layerSprites_2_1 = layerSprites_2.next(); !layerSprites_2_1.done; layerSprites_2_1 = layerSprites_2.next()) {
+                    for (var layerSprites_2 = (e_26 = void 0, __values(layerSprites)), layerSprites_2_1 = layerSprites_2.next(); !layerSprites_2_1.done; layerSprites_2_1 = layerSprites_2.next()) {
                         var sprite = layerSprites_2_1.value;
                         sprite.run();
                     }
                 }
-                catch (e_25_1) { e_25 = { error: e_25_1 }; }
+                catch (e_26_1) { e_26 = { error: e_26_1 }; }
                 finally {
                     try {
                         if (layerSprites_2_1 && !layerSprites_2_1.done && (_b = layerSprites_2.return)) _b.call(layerSprites_2);
                     }
-                    finally { if (e_25) throw e_25.error; }
+                    finally { if (e_26) throw e_26.error; }
                 }
             }
         }
-        catch (e_24_1) { e_24 = { error: e_24_1 }; }
+        catch (e_25_1) { e_25 = { error: e_25_1 }; }
         finally {
             try {
                 if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
             }
-            finally { if (e_24) throw e_24.error; }
+            finally { if (e_25) throw e_25.error; }
         }
         this.pendingRun = true;
+        this.tryDoRun();
+    };
+    Stage.prototype.ready = function () {
+        this.tryDoOnReady();
         this.tryDoRun();
     };
     Stage.prototype.onStart = function (onStartCallback) {
@@ -2555,35 +2653,35 @@ var Stage = (function () {
         this.onReadyCallbacks.push(callback);
     };
     Stage.prototype.stop = function () {
-        var e_26, _a, e_27, _b;
+        var e_27, _a, e_28, _b;
         this._running = false;
         this._stopped = true;
         try {
             for (var _c = __values(this.sprites.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
                 var layerSprites = _d.value;
                 try {
-                    for (var layerSprites_3 = (e_27 = void 0, __values(layerSprites)), layerSprites_3_1 = layerSprites_3.next(); !layerSprites_3_1.done; layerSprites_3_1 = layerSprites_3.next()) {
+                    for (var layerSprites_3 = (e_28 = void 0, __values(layerSprites)), layerSprites_3_1 = layerSprites_3.next(); !layerSprites_3_1.done; layerSprites_3_1 = layerSprites_3.next()) {
                         var sprite = layerSprites_3_1.value;
                         sprite.stop();
                     }
                 }
-                catch (e_27_1) { e_27 = { error: e_27_1 }; }
+                catch (e_28_1) { e_28 = { error: e_28_1 }; }
                 finally {
                     try {
                         if (layerSprites_3_1 && !layerSprites_3_1.done && (_b = layerSprites_3.return)) _b.call(layerSprites_3);
                     }
-                    finally { if (e_27) throw e_27.error; }
+                    finally { if (e_28) throw e_28.error; }
                 }
             }
         }
-        catch (e_26_1) { e_26 = { error: e_26_1 }; }
+        catch (e_27_1) { e_27 = { error: e_27_1 }; }
         finally {
             try {
                 if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
             }
-            finally { if (e_26) throw e_26.error; }
+            finally { if (e_27) throw e_27.error; }
         }
-        this.drawings.clear();
+        this.stoppedTime = Date.now();
     };
     Stage.prototype.getTopEdge = function () {
         return this.topEdge;
@@ -2602,14 +2700,14 @@ var Stage = (function () {
     };
     Stage.prototype.addListeners = function () {
         var _this = this;
-        document.addEventListener(Game.SPRITE_READY_EVENT, function (event) {
+        this.eventEmitter.on(Game.SPRITE_READY_EVENT, Game.SPRITE_READY_EVENT, function (event) {
             if (_this.id == event.detail.stageId) {
                 _this.loadedSprites++;
                 _this.tryDoOnReady();
                 _this.tryDoRun();
             }
         });
-        document.addEventListener(Game.STAGE_BACKGROUND_READY_EVENT, function (event) {
+        this.eventEmitter.on(Game.STAGE_BACKGROUND_READY_EVENT, Game.STAGE_BACKGROUND_READY_EVENT, function (event) {
             if (_this.id == event.detail.stageId) {
                 _this.loadedBackgrounds++;
                 _this.tryDoOnReady();
@@ -2621,7 +2719,7 @@ var Stage = (function () {
         });
     };
     Stage.prototype.tryDoOnReady = function () {
-        var e_28, _a;
+        var e_29, _a;
         if (this.isReady() && this.onReadyPending) {
             this.onReadyPending = false;
             if (this.onReadyCallbacks.length) {
@@ -2631,25 +2729,22 @@ var Stage = (function () {
                         callback();
                     }
                 }
-                catch (e_28_1) { e_28 = { error: e_28_1 }; }
+                catch (e_29_1) { e_29 = { error: e_29_1 }; }
                 finally {
                     try {
                         if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
                     }
-                    finally { if (e_28) throw e_28.error; }
+                    finally { if (e_29) throw e_29.error; }
                 }
                 this.onReadyCallbacks = [];
             }
-            var event_3 = new CustomEvent(Game.STAGE_READY_EVENT, {
-                detail: {
-                    stage: this
-                }
+            this.game.eventEmitter.emit(Game.STAGE_READY_EVENT, {
+                stage: this
             });
-            document.dispatchEvent(event_3);
         }
     };
     Stage.prototype.doOnStart = function () {
-        var e_29, _a;
+        var e_30, _a;
         var _loop_2 = function (callback) {
             setTimeout(function () {
                 callback();
@@ -2661,24 +2756,63 @@ var Stage = (function () {
                 _loop_2(callback);
             }
         }
-        catch (e_29_1) { e_29 = { error: e_29_1 }; }
+        catch (e_30_1) { e_30 = { error: e_30_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_29) throw e_29.error; }
+            finally { if (e_30) throw e_30.error; }
         }
     };
     Stage.prototype.tryDoRun = function () {
         var _this = this;
-        if (this.pendingRun && this.isReady()) {
+        if (this.pendingRun && !this._running && this.isReady()) {
             this._running = true;
             this.pendingRun = false;
             this.doOnStart();
-            this.forever(function () {
-                _this.render();
+            this.diffTime = Date.now() - this.stoppedTime;
+            setTimeout(function () {
+                var stoppedTime = _this.stoppedTime;
+                var loop = function () {
+                    if (_this._stopped || stoppedTime !== _this.stoppedTime) {
+                        return;
+                    }
+                    _this.render();
+                    requestAnimationFrame(loop);
+                };
+                loop();
             });
         }
+    };
+    Stage.prototype.update = function () {
+        var e_31, _a, e_32, _b;
+        this.scheduledCallbacks = this.scheduledCallbacks.filter(this.scheduledCallbackExecutor.execute(Date.now(), this.diffTime));
+        try {
+            for (var _c = __values(this.sprites.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
+                var layerSprites = _d.value;
+                try {
+                    for (var layerSprites_4 = (e_32 = void 0, __values(layerSprites)), layerSprites_4_1 = layerSprites_4.next(); !layerSprites_4_1.done; layerSprites_4_1 = layerSprites_4.next()) {
+                        var sprite = layerSprites_4_1.value;
+                        sprite.update(this.diffTime);
+                    }
+                }
+                catch (e_32_1) { e_32 = { error: e_32_1 }; }
+                finally {
+                    try {
+                        if (layerSprites_4_1 && !layerSprites_4_1.done && (_b = layerSprites_4.return)) _b.call(layerSprites_4);
+                    }
+                    finally { if (e_32) throw e_32.error; }
+                }
+            }
+        }
+        catch (e_31_1) { e_31 = { error: e_31_1 }; }
+        finally {
+            try {
+                if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
+            }
+            finally { if (e_31) throw e_31.error; }
+        }
+        this.diffTime = 0;
     };
     return Stage;
 }());
@@ -2727,7 +2861,8 @@ var BVH = (function () {
             this._hierarchy = body;
         }
         else {
-            while (true) {
+            var depth = 0;
+            while (depth++ < BVH.MAX_DEPTH) {
                 if (current._bvh_branch) {
                     var left = current._bvh_left;
                     var left_min_y = left._bvh_min_y;
@@ -2803,6 +2938,10 @@ var BVH = (function () {
             return;
         }
         var parent = body._bvh_parent;
+        if (!parent) {
+            console.error('The parent is not defined in the collision system.');
+            return;
+        }
         var grandparent = parent._bvh_parent;
         var parent_left = parent._bvh_left;
         var sibling = parent_left === body ? parent._bvh_right : parent_left;
@@ -2818,7 +2957,8 @@ var BVH = (function () {
                 grandparent._bvh_right = sibling;
             }
             var branch = grandparent;
-            while (branch) {
+            var depth = 0;
+            while (branch && depth++ < BVH.MAX_DEPTH) {
                 var left = branch._bvh_left;
                 var left_min_x = left._bvh_min_x;
                 var left_min_y = left._bvh_min_y;
@@ -2889,7 +3029,8 @@ var BVH = (function () {
         if (!current || !current._bvh_branch) {
             return results;
         }
-        while (current) {
+        var depth = 0;
+        while (current && depth++ < BVH.MAX_DEPTH) {
             if (traverse_left) {
                 traverse_left = false;
                 var left = current._bvh_branch ? current._bvh_left : null;
@@ -2980,6 +3121,7 @@ var BVH = (function () {
             }
         }
     };
+    BVH.MAX_DEPTH = 10000;
     return BVH;
 }());
 var branch_pool = [];
@@ -3131,7 +3273,7 @@ var CollisionSystem = (function () {
         return new CollisionResult();
     };
     CollisionSystem.prototype.insert = function () {
-        var e_30, _a;
+        var e_33, _a;
         var bodies = [];
         for (var _i = 0; _i < arguments.length; _i++) {
             bodies[_i] = arguments[_i];
@@ -3142,17 +3284,17 @@ var CollisionSystem = (function () {
                 this._bvh.insert(body, false);
             }
         }
-        catch (e_30_1) { e_30 = { error: e_30_1 }; }
+        catch (e_33_1) { e_33 = { error: e_33_1 }; }
         finally {
             try {
                 if (bodies_1_1 && !bodies_1_1.done && (_a = bodies_1.return)) _a.call(bodies_1);
             }
-            finally { if (e_30) throw e_30.error; }
+            finally { if (e_33) throw e_33.error; }
         }
         return this;
     };
     CollisionSystem.prototype.remove = function () {
-        var e_31, _a;
+        var e_34, _a;
         var bodies = [];
         for (var _i = 0; _i < arguments.length; _i++) {
             bodies[_i] = arguments[_i];
@@ -3163,12 +3305,12 @@ var CollisionSystem = (function () {
                 this._bvh.remove(body, false);
             }
         }
-        catch (e_31_1) { e_31 = { error: e_31_1 }; }
+        catch (e_34_1) { e_34 = { error: e_34_1 }; }
         finally {
             try {
                 if (bodies_2_1 && !bodies_2_1.done && (_a = bodies_2.return)) _a.call(bodies_2);
             }
-            finally { if (e_31) throw e_31.error; }
+            finally { if (e_34) throw e_34.error; }
         }
         return this;
     };
@@ -3774,7 +3916,7 @@ var JetcodeSocketConnection = (function () {
         this.connects[action] = this.connects[action].filter(function (cb) { return cb !== callback; });
     };
     JetcodeSocketConnection.prototype.sendData = function (value, parameters) {
-        var e_32, _a;
+        var e_35, _a;
         if (parameters === void 0) { parameters = {}; }
         if (!this.lobbyId) {
             throw new Error('You are not in the lobby!');
@@ -3786,12 +3928,12 @@ var JetcodeSocketConnection = (function () {
                 request += key + '=' + value_1 + '\n';
             }
         }
-        catch (e_32_1) { e_32 = { error: e_32_1 }; }
+        catch (e_35_1) { e_35 = { error: e_35_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_32) throw e_32.error; }
+            finally { if (e_35) throw e_35.error; }
         }
         request += "SendTime=".concat(Date.now(), "\n");
         request += '\n' + value;
@@ -3801,7 +3943,7 @@ var JetcodeSocketConnection = (function () {
         var _this = this;
         if (parameters === void 0) { parameters = {}; }
         return new Promise(function (resolve, reject) {
-            var e_33, _a;
+            var e_36, _a;
             if (!lobbyId) {
                 lobbyId = 0;
             }
@@ -3814,12 +3956,12 @@ var JetcodeSocketConnection = (function () {
                     request += "".concat(key, "=").concat(value, "\n");
                 }
             }
-            catch (e_33_1) { e_33 = { error: e_33_1 }; }
+            catch (e_36_1) { e_36 = { error: e_36_1 }; }
             finally {
                 try {
                     if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
                 }
-                finally { if (e_33) throw e_33.error; }
+                finally { if (e_36) throw e_36.error; }
             }
             _this.socket.send(request);
             _this.connect(JetcodeSocket.JOINED, function (responseParams) {
@@ -3913,6 +4055,7 @@ var Mouse = (function () {
         this.isDown = false;
         document.addEventListener('mousedown', function () {
             _this.isDown = true;
+            _this.lastStage = game.getActiveStage();
         });
         document.addEventListener('mouseup', function () {
             _this.isDown = false;
@@ -3927,6 +4070,12 @@ var Mouse = (function () {
         this.point.x = this.x;
         this.point.y = this.y;
         return this.point;
+    };
+    Mouse.prototype.isMouseDown = function (stage) {
+        return this.isDown && stage === this.lastStage;
+    };
+    Mouse.prototype.clearMouseDown = function () {
+        this.isDown = false;
     };
     return Mouse;
 }());

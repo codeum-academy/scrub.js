@@ -1,12 +1,14 @@
 class Mouse {
     x = 0;
     y = 0;
-    isDown = false;
+    private isDown = false;
     private point: Point;
+    private lastStage: Stage;
 
     constructor(game: Game) {
         document.addEventListener('mousedown', () => {
             this.isDown = true;
+            this.lastStage = game.getActiveStage();
         });
 
         document.addEventListener('mouseup', () => {
@@ -26,5 +28,13 @@ class Mouse {
         this.point.y = this.y;
 
         return this.point;
+    }
+
+    isMouseDown(stage: Stage) {
+        return this.isDown && stage === this.lastStage;
+    }
+
+    clearMouseDown(): void {
+        this.isDown = false;
     }
 }

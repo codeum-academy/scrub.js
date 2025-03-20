@@ -1,19 +1,19 @@
 class Game {
     id: Symbol;
+    eventEmitter: EventEmitter;
     canvas: HTMLCanvasElement;
     context: CanvasRenderingContext2D;
-    debugMode = 'none'; // none, hover, forever;
-    debugBody = false;
     keyboard: Keyboard;
     mouse: Mouse;
     displayErrors = false;
+    debugMode = 'none'; // none, hover, forever;
+    debugBody = false;
 
-    static GAME_READY_EVENT = 'scrubjs.game.ready';
-    static STAGE_READY_EVENT = 'scrubjs.stage.ready';
-    static STAGE_BACKGROUND_READY_EVENT = 'scrubjs.stage.background_ready';
-    static SPRITE_READY_EVENT = 'scrubjs.sprite.ready';
-    static SPRITE_COSTUME_READY_EVENT = 'scrubjs.sprite.costume_ready';
-    static SPRITE_SOUND_READY_EVENT = 'scrubjs.sprite.sound_ready';
+    static readonly STAGE_READY_EVENT = 'scrubjs.stage.ready';
+    static readonly STAGE_BACKGROUND_READY_EVENT = 'scrubjs.stage.background_ready';
+    static readonly SPRITE_READY_EVENT = 'scrubjs.sprite.ready';
+    static readonly SPRITE_COSTUME_READY_EVENT = 'scrubjs.sprite.costume_ready';
+    static readonly SPRITE_SOUND_READY_EVENT = 'scrubjs.sprite.sound_ready';
 
     private stages: Stage[] = [];
     private activeStage: Stage;
@@ -22,9 +22,11 @@ class Game {
     private onReadyCallbacks = [];
     private onReadyPending = true;
     protected running = false;
+    private pendingRun = false;
 
     constructor(width: number = null, height: number = null, canvasId: string = null) {
         this.id = Symbol();
+        this.eventEmitter = new EventEmitter();
         this.keyboard = new Keyboard();
 
         if (canvasId) {
@@ -79,14 +81,21 @@ class Game {
             this.throwError('You need create Stage instance before run game.');
         }
 
+        if (!this.running) { // only first run
+            for (const inStage of this.stages) {
+                inStage.ready();
+            }
+        }
+
         if (this.activeStage && this.activeStage.running) {
             this.activeStage.stop();
         }
 
+        this.running = false;
+        this.pendingRun = true;
         this.activeStage = stage;
-        this.activeStage.run();
 
-        this.running = true;
+        this.tryDoRun();
     }
 
     isReady() {
@@ -138,7 +147,14 @@ class Game {
     }
 
     mouseDown(): boolean {
-        return this.mouse.isDown;
+        return this.mouse.isMouseDown(this.activeStage);
+    }
+
+    mouseDownOnce(): boolean {
+        const isMouseDown = this.mouse.isMouseDown(this.activeStage);
+        this.mouse.clearMouseDown();
+
+        return isMouseDown;
     }
 
     getMousePoint(): Point {
@@ -158,7 +174,7 @@ class Game {
     }
 
     private addListeners() {
-        document.addEventListener(Game.STAGE_READY_EVENT, (event: CustomEvent) => {
+        this.eventEmitter.on(Game.STAGE_READY_EVENT, Game.STAGE_READY_EVENT, (event: CustomEvent) => {
             this.loadedStages++;
             this.tryDoOnReady();
         });
@@ -175,12 +191,16 @@ class Game {
                 this.onReadyCallbacks = [];
             }
 
-            let event = new CustomEvent(Game.GAME_READY_EVENT, {
-                detail: {
-                    game: this
-                }
-            });
-            document.dispatchEvent(event);
+            this.tryDoRun();
+        }
+    }
+
+    private tryDoRun() {
+        if (this.pendingRun && !this.running && this.isReady()) {
+            this.running = true;
+            this.pendingRun = false;
+
+            this.activeStage.run();
         }
     }
 }

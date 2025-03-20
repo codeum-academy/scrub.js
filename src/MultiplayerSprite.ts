@@ -54,7 +54,7 @@ class MultiplayerSprite extends Sprite implements SyncObjectInterface {
       size: this.size,
       rotateStyle: this.rotateStyle,
       costumeIndex: this.costumeIndex,
-      deleted: this.deleted,
+      deleted: this._deleted,
       x: this.x,
       y: this.y,
       direction: this.direction,

@@ -4,6 +4,7 @@
  * @private
  */
 class BVH {
+		static readonly MAX_DEPTH = 10000;
     protected _hierarchy = null;
     protected _bodies = [];
     protected _dirty_branches = [];
@@ -61,7 +62,8 @@ class BVH {
 			this._hierarchy = body;
 		}
 		else {
-			while(true) {
+			let depth = 0;
+			while(depth++ < BVH.MAX_DEPTH) {
 				// Branch
 				if(current._bvh_branch) {
 					const left            = current._bvh_left;
@@ -154,7 +156,12 @@ class BVH {
 			return;
 		}
 
-		const parent       = body._bvh_parent;
+		const parent = body._bvh_parent;
+		if (!parent) {
+			console.error('The parent is not defined in the collision system.');
+			return;
+		}
+
 		const grandparent  = parent._bvh_parent;
 		const parent_left  = parent._bvh_left;
 		const sibling      = parent_left === body ? parent._bvh_right : parent_left;
@@ -175,7 +182,8 @@ class BVH {
 
 			let branch = grandparent;
 
-			while(branch) {
+			let depth = 0;
+			while(branch && depth++ < BVH.MAX_DEPTH) {
 				const left       = branch._bvh_left;
 				const left_min_x = left._bvh_min_x;
 				const left_min_y = left._bvh_min_y;
@@ -273,7 +281,8 @@ class BVH {
 			return results;
 		}
 
-		while(current) {
+		let depth = 0;
+		while(current && depth++ < BVH.MAX_DEPTH) {
 			if(traverse_left) {
 				traverse_left = false;
 

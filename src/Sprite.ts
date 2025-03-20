@@ -1,5 +1,6 @@
 class Sprite {
     id: Symbol;
+    eventEmitter: EventEmitter;
     name = 'No name';
     size = 100;
     rotateStyle = 'normal'; // 'normal', 'leftRight', 'none'
@@ -14,22 +15,25 @@ class Sprite {
     private costumeNames = [];
     private sounds = [];
     private soundNames = [];
-    protected deleted = false;
     private phrase;
     private phraseLiveTime = null;
     private _x = 0;
     private _y = 0;
     private _direction = 0;
     private _hidden = false;
+    protected _deleted = false;
     private _stopped = true;
     private _layer: number;
     private loadedCostumes = 0;
     private loadedSounds = 0;
     private onReadyCallbacks = [];
     private onReadyPending = true;
+    private scheduledCallbacks: Array<ScheduledCallbackItem> = [];
+    private scheduledCallbackExecutor: ScheduledCallbackExecutor;
 
     constructor(stage: Stage = null, layer = 1, costumePaths = [], soundPaths = []) {
         this.id = Symbol();
+        this.eventEmitter = new EventEmitter();
 
         if (!Registry.getInstance().has('game')) {
             this.game.throwError('You need create Game instance before Sprite instance.');
@@ -58,7 +62,8 @@ class Sprite {
         for (const soundPath of soundPaths) {
             this.addSound(soundPath);
         }
-        
+
+        this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
         this.addListeners();
     }
 
@@ -95,24 +100,27 @@ class Sprite {
         const image = new Image();
         image.src = costumePath;
 
-        image.addEventListener('load', () => {
+        const onLoadImage = () => {
             if (this.deleted) {
                 return;
             }
 
             this.addCostumeByImage(
-                costume,
-                image,
-                x,
-                y,
-                width,
-                height,
-                paddingTop,
-                paddingRight,
-                paddingBottom,
-                paddingLeft
+              costume,
+              image,
+              x,
+              y,
+              width,
+              height,
+              paddingTop,
+              paddingRight,
+              paddingBottom,
+              paddingLeft
             );
-        }, false);
+
+            image.removeEventListener('load', onLoadImage);
+        };
+        image.addEventListener('load', onLoadImage);
 
         image.addEventListener('error', () => {
             this.game.throwError('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
@@ -170,13 +178,10 @@ class Sprite {
 
         costume.ready = true;
 
-        event = new CustomEvent(Game.SPRITE_COSTUME_READY_EVENT, {
-            detail: {
-                costume: costume,
-                spriteId: this.id
-            }
+        this.eventEmitter.emit(Game.SPRITE_COSTUME_READY_EVENT, {
+            costume: costume,
+            spriteId: this.id
         });
-        document.dispatchEvent(event);
     }
 
     addCostumes(
@@ -198,7 +203,7 @@ class Sprite {
             name = 'No name';
         }
 
-        image.addEventListener('load', () => {
+        const onLoadImage = () => {
             image.naturalWidth;
             image.naturalHeight;
 
@@ -212,7 +217,7 @@ class Sprite {
             for (let i = 0; i < rows; i++) {
                 for (let t = 0; t < cols; t++) {
                     skip = false;
-                    if (offset !== null ) {
+                    if (offset !== null) {
                         if (offset > 0) {
                             offset--;
                             skip = true;
@@ -241,16 +246,16 @@ class Sprite {
                         this.costumeNames.push(name);
 
                         this.addCostumeByImage(
-                            costume,
-                            image,
-                            x,
-                            y,
-                            chunkWidth,
-                            chunkHeight,
-                            paddingTop,
-                            paddingRight,
-                            paddingBottom,
-                            paddingLeft
+                          costume,
+                          image,
+                          x,
+                          y,
+                          chunkWidth,
+                          chunkHeight,
+                          paddingTop,
+                          paddingRight,
+                          paddingBottom,
+                          paddingLeft
                         );
                         costumeIndex++;
                     }
@@ -262,38 +267,26 @@ class Sprite {
                 y += chunkHeight;
             }
 
-        }, false);
+            image.removeEventListener('load', onLoadImage);
+        };
+
+        image.addEventListener('load', onLoadImage);
     }
 
+
     switchCostume(costumeIndex): void {
+        if (this.deleted) {
+            return;
+        }
+
         const costume = this.costumes[costumeIndex];
 
         if (costume instanceof Costume && costume.ready) {
             this.costumeIndex = costumeIndex;
             this.costume = costume;
 
-            if (this.singleBody) {
-                if (!(this.body instanceof Polygon)) {
-                    this.createBody(costume);
-                }
-
-                costume.image.addEventListener('load', () => {
-                    this.createBody(costume);
-                }, false);
-
-            } else {
-                if (this.body instanceof Polygon) {
-                    this.removeBody();
-                }
-
-                if (costume.body instanceof Polygon) {
-                    this.createBody(costume);
-                }
-
-                // Fix bug when costume.body is undefined
-                costume.image.addEventListener('load', () => {
-                    this.createBody(costume);
-                }, false);
+            if (!(this.body instanceof Polygon)) {
+                this.createBody(costume);
             }
         }
     }
@@ -310,6 +303,10 @@ class Sprite {
     }
 
     nextCostume(): void {
+        if (this.deleted) {
+            return;
+        }
+
         let nextCostume = this.costumeIndex + 1;
 
         if (nextCostume > this.costumes.length - 1) {
@@ -331,30 +328,26 @@ class Sprite {
         this.soundNames.push(name);
 
         sound.load();
-        sound.addEventListener('loadedmetadata', () => {
-            event = new CustomEvent(Game.SPRITE_SOUND_READY_EVENT, {
-                detail: {
-                    sound: sound,
-                    spriteId: this.id
-                }
+
+        const onLoadSound =  () => {
+            this.eventEmitter.emit(Game.SPRITE_SOUND_READY_EVENT, {
+                sound: sound,
+                spriteId: this.id
             });
 
-            document.dispatchEvent(event);
-        }, false);
+            sound.removeEventListener('loadedmetadata', onLoadSound);
+        };
+        sound.addEventListener('loadedmetadata', onLoadSound);
     }
 
     private cloneSound(sound, name) {
         this.sounds.push(sound);
         this.soundNames.push(name);
 
-        event = new CustomEvent(Game.SPRITE_SOUND_READY_EVENT, {
-            detail: {
-                sound: sound,
-                spriteId: this.id
-            }
+        this.eventEmitter.emit(Game.SPRITE_SOUND_READY_EVENT, {
+            sound: sound,
+            spriteId: this.id
         });
-
-        document.dispatchEvent(event);
     }
 
     playSound(soundIndex, volume: number = null, currentTime: number = null): void {
@@ -430,6 +423,8 @@ class Sprite {
             this.hidden ||
             sprite.stopped ||
             this.stopped ||
+            sprite.deleted ||
+            this.deleted ||
             !(sprite.getBody() instanceof Body) ||
             !(this.body instanceof Body)
         ) {
@@ -440,6 +435,10 @@ class Sprite {
     }
 
     touchSprites(sprites: Sprite[], result: CollisionResult = null): boolean {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
+            return false;
+        }
+
         for (const sprite of sprites) {
             if (this.touchSprite(sprite, result)) {
                 return true;
@@ -450,7 +449,7 @@ class Sprite {
     }
 
     touchPotentialSprites(sprites: Sprite[], result: CollisionResult = null): boolean {
-        if (!(this.body instanceof Polygon)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
@@ -476,7 +475,7 @@ class Sprite {
     }
 
     touchEdge(result: CollisionResult = null): boolean {
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
@@ -497,7 +496,7 @@ class Sprite {
     }
 
     touchTopEdge(result: CollisionResult = null): boolean {
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
@@ -505,7 +504,7 @@ class Sprite {
     }
 
     touchLeftEdge(result: CollisionResult = null): boolean {
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
@@ -513,7 +512,7 @@ class Sprite {
     }
 
     touchRightEdge(result: CollisionResult = null): boolean {
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
@@ -521,7 +520,7 @@ class Sprite {
     }
 
     touchBottomEdge(result: CollisionResult = null): boolean {
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
@@ -533,7 +532,7 @@ class Sprite {
     }
 
     touchMousePoint(mousePoint: Point, result: CollisionResult = null): boolean {
-        if (!(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
@@ -600,6 +599,8 @@ class Sprite {
         clone.y = this.y;
         clone.direction = this.direction;
         clone.hidden = this.hidden;
+        clone._deleted = this.deleted;
+        clone._stopped = this.stopped;
 
         for (const costume of this.costumes) {
             clone.cloneCostume(costume, this.getCostumeName());
@@ -610,89 +611,37 @@ class Sprite {
             clone.cloneSound(sound, this.soundNames[soundIndex]);
         }
 
-        clone.deleted = this.deleted;
-        clone._stopped = this.stopped;
-
         return clone;
     }
 
-    timeout(callback, timeout: number): void {
-        setTimeout(() => {
-            if (this.deleted || this.stopped) {
-                return;
-            }
-
-            requestAnimationFrame(() => callback(this));
-        }, timeout);
+    timeout(callback: ScheduledCallbackFunction, timeout: number): void {
+        this.repeat(callback, 1, null, timeout, undefined);
     }
 
-    repeat(i: number, callback: CallableFunction, timeout = null, finishCallback: CallableFunction = null) {
-        if (this.deleted || this.stopped) {
-            finishCallback();
-
-            return;
-        }
-
-        if (i < 1) {
-            finishCallback();
-
-            return;
-        }
-
-        if (this.isReady()) {
-            const result = callback(this);
-            if (result === false) {
-                finishCallback();
-
-                return;
-            }
-
-            if (result > 0) {
-                timeout = result;
-            }
-        }
-
-        i--;
-        if (i < 1) {
-            finishCallback();
-
-            return;
-        }
+    repeat(callback: ScheduledCallbackFunction, repeat: number, interval: number = null, timeout: number = null, finishCallback: ScheduledCallbackFunction) {
+        const state = new ScheduledState(interval, repeat, 0);
 
         if (timeout) {
-            setTimeout(() => {
-                requestAnimationFrame(() => this.repeat(i, callback, timeout, finishCallback));
-            }, timeout);
-
-        } else {
-            requestAnimationFrame(() => this.repeat(i, callback, timeout, finishCallback));
+            timeout = Date.now() + timeout;
         }
+
+        this.scheduledCallbacks.push(new ScheduledCallbackItem(callback, state, timeout, finishCallback));
     }
 
-    forever(callback, timeout = null): void {
-        if (this.deleted || this.stopped) {
-            return;
-        }
-
-        if (this.isReady()) {
-            const result = callback(this);
-            if (result === false) {
-                return;
-            }
-
-            if (result > 0) {
-                timeout = result;
-            }
-        }
+    forever(callback: ScheduledCallbackFunction, interval: number = null, timeout: number = null, finishCallback: ScheduledCallbackFunction): void {
+        const state = new ScheduledState(interval);
 
         if (timeout) {
-            setTimeout(() => {
-                requestAnimationFrame(() => this.forever(callback, timeout));
-            }, timeout);
-
-        } else {
-            requestAnimationFrame(() => this.forever(callback));
+            timeout = Date.now() + timeout;
         }
+
+        this.scheduledCallbacks.push(new ScheduledCallbackItem(callback, state, timeout, finishCallback));
+    }
+
+    update(diffTime: number) {
+        this.scheduledCallbacks = this.scheduledCallbacks.filter(
+          this.scheduledCallbackExecutor.execute(Date.now(), diffTime)
+        );
     }
 
     delete(): void {
@@ -700,14 +649,18 @@ class Sprite {
             return;
         }
 
+        this.eventEmitter.clearAll();
+        this.removeBody();
         this.stage.removeSprite(this);
+        this.scheduledCallbackExecutor = null;
+        this.scheduledCallbacks = [];
 
         let props = Object.keys(this);
         for (let i = 0; i < props.length; i++) {
             delete this[props[i]];
         }
 
-        this.deleted = true;
+        this._deleted = true;
     }
 
     run(): void {
@@ -824,6 +777,10 @@ class Sprite {
         return this._hidden;
     }
 
+    get deleted(): boolean {
+        return this._deleted;
+    }
+
     get stopped(): boolean {
         return this._stopped;
     }
@@ -839,7 +796,7 @@ class Sprite {
     }
 
     private addListeners() {
-        document.addEventListener(Game.SPRITE_COSTUME_READY_EVENT, (event: CustomEvent) => {
+        this.eventEmitter.on(Game.SPRITE_COSTUME_READY_EVENT, Game.SPRITE_COSTUME_READY_EVENT, (event: CustomEvent) => {
             if (this.id == event.detail.spriteId) {
                 this.loadedCostumes++;
                 this.tryDoOnReady();
@@ -850,7 +807,7 @@ class Sprite {
             }
         });
 
-        document.addEventListener(Game.SPRITE_SOUND_READY_EVENT, (event: CustomEvent) => {
+        this.eventEmitter.on(Game.SPRITE_SOUND_READY_EVENT, Game.SPRITE_SOUND_READY_EVENT, (event: CustomEvent) => {
             if (this.id == event.detail.spriteId) {
                 this.loadedSounds++;
                 this.tryDoOnReady();
@@ -869,13 +826,10 @@ class Sprite {
                 this.onReadyCallbacks = [];
             }
 
-            let event = new CustomEvent(Game.SPRITE_READY_EVENT, {
-                detail: {
-                    sprite: this,
-                    stageId: this.stage.id
-                }
+            this.stage.eventEmitter.emit(Game.SPRITE_READY_EVENT, {
+                sprite: this,
+                stageId: this.stage.id
             });
-            document.dispatchEvent(event);
         }
     }
 
