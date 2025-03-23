@@ -35,33 +35,37 @@ class Stage {
     private scheduledCallbackExecutor: ScheduledCallbackExecutor;
 
     constructor(background: string = null, padding = 0) {
-        this.id = Symbol();
-        this.eventEmitter = new EventEmitter();
-
         if (!Registry.getInstance().has('game')) {
             throw new Error('You need create Game instance before Stage instance.');
         }
         this.game = Registry.getInstance().get('game');
 
-        this.collisionSystem = new CollisionSystem();
-        this.canvas = this.game.canvas;
-        this.context = this.game.context;
+        let stage = this;
+        if (this.game.displayErrors) {
+            stage = this.game.validatorFactory.createValidator(this, 'Stage');
+        }
+
+        stage.id = Symbol();
+        stage.eventEmitter = new EventEmitter();
+
+
+        stage.collisionSystem = new CollisionSystem();
+        stage.canvas = stage.game.canvas;
+        stage.context = stage.game.context;
 
         if (background) {
-            this.addBackground(background);
+            stage.addBackground(background);
         }
 
-        this.padding = padding;
-        this.addListeners();
+        stage.padding = padding;
+        stage.addListeners();
 
-        this.game.addStage(this);
+        stage.game.addStage(stage);
 
-        this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
-        this.stoppedTime = Date.now();
+        stage.scheduledCallbackExecutor = new ScheduledCallbackExecutor(stage);
+        stage.stoppedTime = Date.now();
 
-        if (this.game.displayErrors) {
-            return this.game.validatorFactory.createValidator(this, 'Stage');
-        }
+        return stage;
     }
 
     set padding(padding: number) {
@@ -108,21 +112,22 @@ class Stage {
         this.addedSprites++;
     }
 
-    removeSprite(sprite: Sprite): void {
-        if (!this.sprites.has(sprite.layer)) {
-            this.game.throwErrorRaw('The layer "' + sprite.layer + '" not defined in the stage.');
+    removeSprite(sprite: Sprite, layer: number): void {
+        if (!this.sprites.has(layer)) {
+            this.game.throwErrorRaw('The layer "' + layer + '" not defined in the stage.');
         }
 
-        const layerSprites = this.sprites.get(sprite.layer);
+        const layerSprites = this.sprites.get(layer);
         layerSprites.splice(layerSprites.indexOf(sprite), 1);
 
         if (!layerSprites.length) {
-            this.sprites.delete(sprite.layer);
+            this.sprites.delete(layer);
         }
 
-        if (sprite.isReady()) {
+        if (sprite.deleted || sprite.isReady()) {
             this.loadedSprites--;
         }
+
         this.addedSprites--;
     }
 
@@ -475,11 +480,16 @@ class Stage {
           this.scheduledCallbackExecutor.execute(Date.now(), this.diffTime)
         );
 
-        for (const layerSprites of this.sprites.values()) {
+        this.sprites.forEach((layerSprites, layer) => {
             for (const sprite of layerSprites) {
+                if (sprite.deleted) {
+                    this.removeSprite(sprite, layer);
+                    return;
+                }
+
                 sprite.update(this.diffTime);
             }
-        }
+        });
 
         this.diffTime = 0;
     }

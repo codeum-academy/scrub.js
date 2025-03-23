@@ -86,7 +86,6 @@ var Game = (function () {
         if (canvasId === void 0) { canvasId = null; }
         if (displayErrors === void 0) { displayErrors = true; }
         if (locale === void 0) { locale = 'ru'; }
-        var _this = this;
         this.debugMode = 'none';
         this.debugBody = false;
         this.stages = [];
@@ -103,32 +102,34 @@ var Game = (function () {
         this._displayErrors = displayErrors;
         this._locale = locale;
         this.validatorFactory = new ValidatorFactory(this);
+        var game = this;
+        if (this.displayErrors) {
+            game = this.validatorFactory.createValidator(this, 'Game');
+        }
         window.onerror = function () {
-            _this.reportError(ErrorMessages.getMessage(ErrorMessages.SCRIPT_ERROR, _this._locale));
+            game.reportError(ErrorMessages.getMessage(ErrorMessages.SCRIPT_ERROR, game._locale));
         };
-        this.id = Symbol();
-        this.eventEmitter = new EventEmitter();
-        this.keyboard = new Keyboard();
+        game.id = Symbol();
+        game.eventEmitter = new EventEmitter();
+        game.keyboard = new Keyboard();
         if (canvasId) {
             var element = document.getElementById(canvasId);
             if (element instanceof HTMLCanvasElement) {
-                this.canvas = element;
+                game.canvas = element;
             }
         }
         else {
-            this.canvas = document.createElement('canvas');
-            document.body.appendChild(this.canvas);
+            game.canvas = document.createElement('canvas');
+            document.body.appendChild(game.canvas);
         }
-        this.canvas.width = width;
-        this.canvas.height = height;
-        this.styles = new Styles(this.canvas, width, height);
-        this.mouse = new Mouse(this);
-        this.context = this.canvas.getContext('2d');
-        Registry.getInstance().set('game', this);
-        this.addListeners();
-        if (this.displayErrors) {
-            return this.validatorFactory.createValidator(this, 'Game');
-        }
+        game.canvas.width = width;
+        game.canvas.height = height;
+        game.styles = new Styles(game.canvas, width, height);
+        game.mouse = new Mouse(game);
+        game.context = game.canvas.getContext('2d');
+        Registry.getInstance().set('game', game);
+        game.addListeners();
+        return game;
     }
     Game.prototype.addStage = function (stage) {
         this.stages.push(stage);
@@ -822,27 +823,30 @@ var Sprite = (function () {
         this.onReadyCallbacks = [];
         this.onReadyPending = true;
         this.scheduledCallbacks = [];
-        this.id = Symbol();
-        this.eventEmitter = new EventEmitter();
         if (!Registry.getInstance().has('game')) {
-            this.game.throwError(ErrorMessages.NEED_CREATE_GAME_BEFORE_SPRITE);
+            throw new Error('You need create Game instance before Stage instance.');
         }
         this.game = Registry.getInstance().get('game');
-        this.stage = stage;
-        if (!this.stage) {
-            this.stage = this.game.getLastStage();
+        var sprite = this;
+        if (this.game.displayErrors) {
+            sprite = this.game.validatorFactory.createValidator(this, 'Sprite');
         }
+        sprite.id = Symbol();
+        sprite.eventEmitter = new EventEmitter();
+        sprite.stage = stage;
         if (!this.stage) {
-            this.game.throwError(ErrorMessages.NEED_CREATE_STAGE_BEFORE_SPRITE);
+            sprite.stage = this.game.getLastStage();
         }
-        this._layer = layer;
-        this.stage.addSprite(this);
-        this._x = this.game.width / 2;
-        this._y = this.game.height / 2;
+        if (!sprite.stage) {
+            sprite.game.throwError(ErrorMessages.NEED_CREATE_STAGE_BEFORE_SPRITE);
+        }
+        sprite._layer = layer;
+        sprite._x = sprite.game.width / 2;
+        sprite._y = sprite.game.height / 2;
         try {
             for (var costumePaths_1 = __values(costumePaths), costumePaths_1_1 = costumePaths_1.next(); !costumePaths_1_1.done; costumePaths_1_1 = costumePaths_1.next()) {
                 var costumePath = costumePaths_1_1.value;
-                this.addCostume(costumePath);
+                sprite.addCostume(costumePath);
             }
         }
         catch (e_6_1) { e_6 = { error: e_6_1 }; }
@@ -855,7 +859,7 @@ var Sprite = (function () {
         try {
             for (var soundPaths_1 = __values(soundPaths), soundPaths_1_1 = soundPaths_1.next(); !soundPaths_1_1.done; soundPaths_1_1 = soundPaths_1.next()) {
                 var soundPath = soundPaths_1_1.value;
-                this.addSound(soundPath);
+                sprite.addSound(soundPath);
             }
         }
         catch (e_7_1) { e_7 = { error: e_7_1 }; }
@@ -865,11 +869,10 @@ var Sprite = (function () {
             }
             finally { if (e_7) throw e_7.error; }
         }
-        this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
-        this.addListeners();
-        if (this.game.displayErrors) {
-            return this.game.validatorFactory.createValidator(this, 'Sprite');
-        }
+        sprite.scheduledCallbackExecutor = new ScheduledCallbackExecutor(sprite);
+        sprite.stage.addSprite(sprite);
+        sprite.addListeners();
+        return sprite;
     }
     Sprite.prototype.isReady = function () {
         return this.loadedCostumes == this.costumes.length && this.loadedSounds == this.sounds.length;
@@ -1369,21 +1372,29 @@ var Sprite = (function () {
         this.scheduledCallbacks.push(new ScheduledCallbackItem(callback, state, timeout, finishCallback));
     };
     Sprite.prototype.update = function (diffTime) {
+        if (this.deleted) {
+            return;
+        }
         this.scheduledCallbacks = this.scheduledCallbacks.filter(this.scheduledCallbackExecutor.execute(Date.now(), diffTime));
     };
     Sprite.prototype.delete = function () {
         if (this.deleted) {
             return;
         }
+        this.stage.removeSprite(this, this.layer);
         this.eventEmitter.clearAll();
         this.removeBody();
-        this.stage.removeSprite(this);
         this.scheduledCallbackExecutor = null;
-        this.scheduledCallbacks = [];
         var props = Object.keys(this);
         for (var i = 0; i < props.length; i++) {
             delete this[props[i]];
         }
+        this.costumes = [];
+        this.costumeNames = [];
+        this.sounds = [];
+        this.soundNames = [];
+        this.onReadyCallbacks = [];
+        this.scheduledCallbacks = [];
         this._deleted = true;
     };
     Sprite.prototype.run = function () {
@@ -1515,9 +1526,9 @@ var Sprite = (function () {
             return this._layer;
         },
         set: function (value) {
-            this.stage.removeSprite(this);
+            this.stage.removeSprite(this, this._layer);
             this._layer = value;
-            this.stage.addSprite(this);
+            this.stage.addSprite(this, value);
         },
         enumerable: false,
         configurable: true
@@ -2383,26 +2394,28 @@ var Stage = (function () {
         this._running = false;
         this.stoppedTime = null;
         this.diffTime = null;
-        this.id = Symbol();
-        this.eventEmitter = new EventEmitter();
         if (!Registry.getInstance().has('game')) {
             throw new Error('You need create Game instance before Stage instance.');
         }
         this.game = Registry.getInstance().get('game');
-        this.collisionSystem = new CollisionSystem();
-        this.canvas = this.game.canvas;
-        this.context = this.game.context;
-        if (background) {
-            this.addBackground(background);
-        }
-        this.padding = padding;
-        this.addListeners();
-        this.game.addStage(this);
-        this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
-        this.stoppedTime = Date.now();
+        var stage = this;
         if (this.game.displayErrors) {
-            return this.game.validatorFactory.createValidator(this, 'Stage');
+            stage = this.game.validatorFactory.createValidator(this, 'Stage');
         }
+        stage.id = Symbol();
+        stage.eventEmitter = new EventEmitter();
+        stage.collisionSystem = new CollisionSystem();
+        stage.canvas = stage.game.canvas;
+        stage.context = stage.game.context;
+        if (background) {
+            stage.addBackground(background);
+        }
+        stage.padding = padding;
+        stage.addListeners();
+        stage.game.addStage(stage);
+        stage.scheduledCallbackExecutor = new ScheduledCallbackExecutor(stage);
+        stage.stoppedTime = Date.now();
+        return stage;
     }
     Object.defineProperty(Stage.prototype, "padding", {
         get: function () {
@@ -2458,16 +2471,16 @@ var Stage = (function () {
         layerSprites.push(sprite);
         this.addedSprites++;
     };
-    Stage.prototype.removeSprite = function (sprite) {
-        if (!this.sprites.has(sprite.layer)) {
-            this.game.throwErrorRaw('The layer "' + sprite.layer + '" not defined in the stage.');
+    Stage.prototype.removeSprite = function (sprite, layer) {
+        if (!this.sprites.has(layer)) {
+            this.game.throwErrorRaw('The layer "' + layer + '" not defined in the stage.');
         }
-        var layerSprites = this.sprites.get(sprite.layer);
+        var layerSprites = this.sprites.get(layer);
         layerSprites.splice(layerSprites.indexOf(sprite), 1);
         if (!layerSprites.length) {
-            this.sprites.delete(sprite.layer);
+            this.sprites.delete(layer);
         }
-        if (sprite.isReady()) {
+        if (sprite.deleted || sprite.isReady()) {
             this.loadedSprites--;
         }
         this.addedSprites--;
@@ -2840,33 +2853,28 @@ var Stage = (function () {
         }
     };
     Stage.prototype.update = function () {
-        var e_31, _a, e_32, _b;
+        var _this = this;
         this.scheduledCallbacks = this.scheduledCallbacks.filter(this.scheduledCallbackExecutor.execute(Date.now(), this.diffTime));
-        try {
-            for (var _c = __values(this.sprites.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
-                var layerSprites = _d.value;
-                try {
-                    for (var layerSprites_4 = (e_32 = void 0, __values(layerSprites)), layerSprites_4_1 = layerSprites_4.next(); !layerSprites_4_1.done; layerSprites_4_1 = layerSprites_4.next()) {
-                        var sprite = layerSprites_4_1.value;
-                        sprite.update(this.diffTime);
-                    }
-                }
-                catch (e_32_1) { e_32 = { error: e_32_1 }; }
-                finally {
-                    try {
-                        if (layerSprites_4_1 && !layerSprites_4_1.done && (_b = layerSprites_4.return)) _b.call(layerSprites_4);
-                    }
-                    finally { if (e_32) throw e_32.error; }
-                }
-            }
-        }
-        catch (e_31_1) { e_31 = { error: e_31_1 }; }
-        finally {
+        this.sprites.forEach(function (layerSprites, layer) {
+            var e_31, _a;
             try {
-                if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
+                for (var layerSprites_4 = __values(layerSprites), layerSprites_4_1 = layerSprites_4.next(); !layerSprites_4_1.done; layerSprites_4_1 = layerSprites_4.next()) {
+                    var sprite = layerSprites_4_1.value;
+                    if (sprite.deleted) {
+                        _this.removeSprite(sprite, layer);
+                        return;
+                    }
+                    sprite.update(_this.diffTime);
+                }
             }
-            finally { if (e_31) throw e_31.error; }
-        }
+            catch (e_31_1) { e_31 = { error: e_31_1 }; }
+            finally {
+                try {
+                    if (layerSprites_4_1 && !layerSprites_4_1.done && (_a = layerSprites_4.return)) _a.call(layerSprites_4);
+                }
+                finally { if (e_31) throw e_31.error; }
+            }
+        });
         this.diffTime = 0;
     };
     return Stage;
@@ -3328,7 +3336,7 @@ var CollisionSystem = (function () {
         return new CollisionResult();
     };
     CollisionSystem.prototype.insert = function () {
-        var e_33, _a;
+        var e_32, _a;
         var bodies = [];
         for (var _i = 0; _i < arguments.length; _i++) {
             bodies[_i] = arguments[_i];
@@ -3339,17 +3347,17 @@ var CollisionSystem = (function () {
                 this._bvh.insert(body, false);
             }
         }
-        catch (e_33_1) { e_33 = { error: e_33_1 }; }
+        catch (e_32_1) { e_32 = { error: e_32_1 }; }
         finally {
             try {
                 if (bodies_1_1 && !bodies_1_1.done && (_a = bodies_1.return)) _a.call(bodies_1);
             }
-            finally { if (e_33) throw e_33.error; }
+            finally { if (e_32) throw e_32.error; }
         }
         return this;
     };
     CollisionSystem.prototype.remove = function () {
-        var e_34, _a;
+        var e_33, _a;
         var bodies = [];
         for (var _i = 0; _i < arguments.length; _i++) {
             bodies[_i] = arguments[_i];
@@ -3360,12 +3368,12 @@ var CollisionSystem = (function () {
                 this._bvh.remove(body, false);
             }
         }
-        catch (e_34_1) { e_34 = { error: e_34_1 }; }
+        catch (e_33_1) { e_33 = { error: e_33_1 }; }
         finally {
             try {
                 if (bodies_2_1 && !bodies_2_1.done && (_a = bodies_2.return)) _a.call(bodies_2);
             }
-            finally { if (e_34) throw e_34.error; }
+            finally { if (e_33) throw e_33.error; }
         }
         return this;
     };
@@ -3971,7 +3979,7 @@ var JetcodeSocketConnection = (function () {
         this.connects[action] = this.connects[action].filter(function (cb) { return cb !== callback; });
     };
     JetcodeSocketConnection.prototype.sendData = function (value, parameters) {
-        var e_35, _a;
+        var e_34, _a;
         if (parameters === void 0) { parameters = {}; }
         if (!this.lobbyId) {
             throw new Error('You are not in the lobby!');
@@ -3983,12 +3991,12 @@ var JetcodeSocketConnection = (function () {
                 request += key + '=' + value_1 + '\n';
             }
         }
-        catch (e_35_1) { e_35 = { error: e_35_1 }; }
+        catch (e_34_1) { e_34 = { error: e_34_1 }; }
         finally {
             try {
                 if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
             }
-            finally { if (e_35) throw e_35.error; }
+            finally { if (e_34) throw e_34.error; }
         }
         request += "SendTime=".concat(Date.now(), "\n");
         request += '\n' + value;
@@ -3998,7 +4006,7 @@ var JetcodeSocketConnection = (function () {
         var _this = this;
         if (parameters === void 0) { parameters = {}; }
         return new Promise(function (resolve, reject) {
-            var e_36, _a;
+            var e_35, _a;
             if (!lobbyId) {
                 lobbyId = 0;
             }
@@ -4011,12 +4019,12 @@ var JetcodeSocketConnection = (function () {
                     request += "".concat(key, "=").concat(value, "\n");
                 }
             }
-            catch (e_36_1) { e_36 = { error: e_36_1 }; }
+            catch (e_35_1) { e_35 = { error: e_35_1 }; }
             finally {
                 try {
                     if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
                 }
-                finally { if (e_36) throw e_36.error; }
+                finally { if (e_35) throw e_35.error; }
             }
             _this.socket.send(request);
             _this.connect(JetcodeSocket.JOINED, function (responseParams) {
@@ -4094,7 +4102,6 @@ var ErrorMessages = (function () {
     ErrorMessages.MISTAKE_METHOD = 'mistake_method';
     ErrorMessages.MISTAKE_METHOD_WITH_CLOSEST = 'mistake_method_with_closest';
     ErrorMessages.NEED_STAGE_BEFORE_RUN_GAME = 'need_stage_before_run_game';
-    ErrorMessages.NEED_CREATE_GAME_BEFORE_SPRITE = 'need_create_game_before_sprite';
     ErrorMessages.NEED_CREATE_STAGE_BEFORE_SPRITE = 'need_create_stage_before_sprite';
     ErrorMessages.COSTUME_NOT_LOADED = 'costume_not_loaded';
     ErrorMessages.BACKGROUND_NOT_LOADED = 'background_not_loaded';
@@ -4118,10 +4125,6 @@ var ErrorMessages = (function () {
         need_stage_before_run_game: {
             'ru': 'Вам нужно создать экземпляр Stage перед запуском игры.',
             'en': 'You need create Stage instance before run game.'
-        },
-        need_create_game_before_sprite: {
-            'ru': 'Вам нужно создать экземпляр класса Game перед экземпляром класса Sprite.',
-            'en': 'You need create Game instance before Sprite instance.'
         },
         need_create_stage_before_sprite: {
             'ru': 'Вам нужно создать экземпляр класса Stage перед экземпляром класса Sprite.',

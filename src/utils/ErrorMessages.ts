@@ -3,7 +3,6 @@ class ErrorMessages {
   static readonly MISTAKE_METHOD = 'mistake_method';
   static readonly MISTAKE_METHOD_WITH_CLOSEST = 'mistake_method_with_closest';
   static readonly NEED_STAGE_BEFORE_RUN_GAME = 'need_stage_before_run_game';
-  static readonly NEED_CREATE_GAME_BEFORE_SPRITE = 'need_create_game_before_sprite';
   static readonly NEED_CREATE_STAGE_BEFORE_SPRITE = 'need_create_stage_before_sprite';
   static readonly COSTUME_NOT_LOADED = 'costume_not_loaded';
   static readonly BACKGROUND_NOT_LOADED = 'background_not_loaded';
@@ -28,10 +27,6 @@ class ErrorMessages {
     need_stage_before_run_game:  {
       'ru': 'Вам нужно создать экземпляр Stage перед запуском игры.',
       'en': 'You need create Stage instance before run game.'
-    },
-    need_create_game_before_sprite:  {
-      'ru': 'Вам нужно создать экземпляр класса Game перед экземпляром класса Sprite.',
-      'en': 'You need create Game instance before Sprite instance.'
     },
     need_create_stage_before_sprite:  {
       'ru': 'Вам нужно создать экземпляр класса Stage перед экземпляром класса Sprite.',

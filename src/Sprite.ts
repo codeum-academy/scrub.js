@@ -32,43 +32,47 @@ class Sprite {
     private scheduledCallbackExecutor: ScheduledCallbackExecutor;
 
     constructor(stage: Stage = null, layer = 1, costumePaths = [], soundPaths = []) {
-        this.id = Symbol();
-        this.eventEmitter = new EventEmitter();
-
         if (!Registry.getInstance().has('game')) {
-            this.game.throwError(ErrorMessages.NEED_CREATE_GAME_BEFORE_SPRITE);
+            throw new Error('You need create Game instance before Stage instance.');
         }
         this.game = Registry.getInstance().get('game');
 
-        this.stage = stage;
-        if (!this.stage) {
-            this.stage = this.game.getLastStage();
+        let sprite = this;
+        if (this.game.displayErrors) {
+            sprite = this.game.validatorFactory.createValidator(this, 'Sprite');
         }
 
+        sprite.id = Symbol();
+        sprite.eventEmitter = new EventEmitter();
+
+        sprite.stage = stage;
         if (!this.stage) {
-            this.game.throwError(ErrorMessages.NEED_CREATE_STAGE_BEFORE_SPRITE);
+            sprite.stage = this.game.getLastStage();
         }
 
-        this._layer = layer;
-        this.stage.addSprite(this);
+        if (!sprite.stage) {
+            sprite.game.throwError(ErrorMessages.NEED_CREATE_STAGE_BEFORE_SPRITE);
+        }
 
-        this._x = this.game.width / 2;
-        this._y = this.game.height / 2;
+        sprite._layer = layer;
+
+        sprite._x = sprite.game.width / 2;
+        sprite._y = sprite.game.height / 2;
 
         for (const costumePath of costumePaths) {
-            this.addCostume(costumePath);
+            sprite.addCostume(costumePath);
         }
 
         for (const soundPath of soundPaths) {
-            this.addSound(soundPath);
+            sprite.addSound(soundPath);
         }
 
-        this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
-        this.addListeners();
+        sprite.scheduledCallbackExecutor = new ScheduledCallbackExecutor(sprite);
+        sprite.stage.addSprite(sprite);
 
-        if (this.game.displayErrors) {
-            return this.game.validatorFactory.createValidator(this, 'Sprite');
-        }
+        sprite.addListeners();
+
+        return sprite;
     }
 
     isReady() {
@@ -643,6 +647,10 @@ class Sprite {
     }
 
     update(diffTime: number) {
+        if (this.deleted) {
+            return;
+        }
+
         this.scheduledCallbacks = this.scheduledCallbacks.filter(
           this.scheduledCallbackExecutor.execute(Date.now(), diffTime)
         );
@@ -653,16 +661,23 @@ class Sprite {
             return;
         }
 
+        this.stage.removeSprite(this, this.layer);
+
         this.eventEmitter.clearAll();
         this.removeBody();
-        this.stage.removeSprite(this);
         this.scheduledCallbackExecutor = null;
-        this.scheduledCallbacks = [];
 
         let props = Object.keys(this);
         for (let i = 0; i < props.length; i++) {
             delete this[props[i]];
         }
+
+        this.costumes = [];
+        this.costumeNames = [];
+        this.sounds = [];
+        this.soundNames = [];
+        this.onReadyCallbacks = [];
+        this.scheduledCallbacks = [];
 
         this._deleted = true;
     }
@@ -790,9 +805,9 @@ class Sprite {
     }
 
     set layer(value: number) {
-        this.stage.removeSprite(this);
+        this.stage.removeSprite(this, this._layer);
         this._layer = value;
-        this.stage.addSprite(this);
+        this.stage.addSprite(this, value);
     }
 
     get layer(): number {

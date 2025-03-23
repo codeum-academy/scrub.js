@@ -35,39 +35,42 @@ class Game {
         this._locale = locale;
         this.validatorFactory = new ValidatorFactory(this);
 
+        let game = this;
+        if (this.displayErrors) {
+            game = this.validatorFactory.createValidator(this, 'Game');
+        }
+
         window.onerror = () => {
-            this.reportError(ErrorMessages.getMessage(ErrorMessages.SCRIPT_ERROR, this._locale));
+            game.reportError(ErrorMessages.getMessage(ErrorMessages.SCRIPT_ERROR, game._locale));
         };
 
-        this.id = Symbol();
-        this.eventEmitter = new EventEmitter();
-        this.keyboard = new Keyboard();
+        game.id = Symbol();
+        game.eventEmitter = new EventEmitter();
+        game.keyboard = new Keyboard();
 
         if (canvasId) {
             const element = document.getElementById(canvasId);
 
             if (element instanceof HTMLCanvasElement) {
-                this.canvas = element;
+                game.canvas = element;
             }
 
         } else {
-            this.canvas = document.createElement('canvas');
-            document.body.appendChild(this.canvas);
+            game.canvas = document.createElement('canvas');
+            document.body.appendChild(game.canvas);
         }
 
-        this.canvas.width  = width;
-        this.canvas.height = height;
-        this.styles = new Styles(this.canvas, width, height);
-        this.mouse = new Mouse(this);
-        this.context = this.canvas.getContext('2d');
+        game.canvas.width  = width;
+        game.canvas.height = height;
+        game.styles = new Styles(game.canvas, width, height);
+        game.mouse = new Mouse(game);
+        game.context = game.canvas.getContext('2d');
 
-        Registry.getInstance().set('game', this);
+        Registry.getInstance().set('game', game);
 
-        this.addListeners();
+        game.addListeners();
 
-        if (this.displayErrors) {
-            return this.validatorFactory.createValidator(this, 'Game');
-        }
+        return game;
     }
 
     addStage(stage: Stage) {
