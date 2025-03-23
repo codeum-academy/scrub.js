@@ -6,16 +6,16 @@ class Sprite {
     rotateStyle = 'normal'; // 'normal', 'leftRight', 'none'
     singleBody = true;
 
-    private game: Game;
-    private body: Polygon;
+    private game: Game = null;
+    private body: Polygon = null
     protected costumeIndex = null;
     private costume: Costume = null;
-    protected stage;
+    protected stage = null
     private costumes = [];
     private costumeNames = [];
     private sounds = [];
     private soundNames = [];
-    private phrase;
+    private phrase = null;
     private phraseLiveTime = null;
     private _x = 0;
     private _y = 0;
@@ -36,7 +36,7 @@ class Sprite {
         this.eventEmitter = new EventEmitter();
 
         if (!Registry.getInstance().has('game')) {
-            this.game.throwError('You need create Game instance before Sprite instance.');
+            this.game.throwError(ErrorMessages.NEED_CREATE_GAME_BEFORE_SPRITE);
         }
         this.game = Registry.getInstance().get('game');
 
@@ -46,7 +46,7 @@ class Sprite {
         }
 
         if (!this.stage) {
-            this.game.throwError('You need create Stage instance before Sprite instance.');
+            this.game.throwError(ErrorMessages.NEED_CREATE_STAGE_BEFORE_SPRITE);
         }
 
         this._layer = layer;
@@ -65,6 +65,10 @@ class Sprite {
 
         this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
         this.addListeners();
+
+        if (this.game.displayErrors) {
+            return this.game.validatorFactory.createValidator(this, 'Sprite');
+        }
     }
 
     isReady() {
@@ -123,7 +127,7 @@ class Sprite {
         image.addEventListener('load', onLoadImage);
 
         image.addEventListener('error', () => {
-            this.game.throwError('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
+            this.game.throwError(ErrorMessages.COSTUME_NOT_LOADED, {costumePath});
         });
     }
 
@@ -298,7 +302,7 @@ class Sprite {
             this.switchCostume(costumeIndex);
 
         } else {
-            this.game.throwError('Name ' + costumeName +  'not found.');
+            this.game.throwError(ErrorMessages.COSTUME_NAME_NOT_FOUND, {costumeName});
         }
     }
 
@@ -365,7 +369,7 @@ class Sprite {
             }
 
         } else {
-            this.game.throwError('Sound with index "' + soundIndex +  '" not found.');
+            this.game.throwError(ErrorMessages.SOUND_INDEX_NOT_FOUND, {soundIndex});
         }
     }
 
@@ -376,7 +380,7 @@ class Sprite {
             sound.pause();
 
         } else {
-            this.game.throwError('Sound with index "' + soundIndex +  '" not found.');
+            this.game.throwError(ErrorMessages.SOUND_INDEX_NOT_FOUND, {soundIndex});
         }
     }
 
@@ -387,7 +391,7 @@ class Sprite {
             this.playSound(soundIndex, volume, currentTime);
 
         } else {
-            this.game.throwError('Name ' + soundName +  'not found.');
+            this.game.throwError(ErrorMessages.SOUND_NAME_NOT_FOUND, {soundName});
         }
     }
 
@@ -398,7 +402,7 @@ class Sprite {
             this.pauseSound(soundIndex);
 
         } else {
-            this.game.throwError('Name ' + soundName +  'not found.');
+            this.game.throwError(ErrorMessages.SOUND_NAME_NOT_FOUND, {soundName});
         }
     }
 
@@ -582,7 +586,7 @@ class Sprite {
 
     createClone(stage: Stage = null): Sprite {
         if (!this.isReady()) {
-            this.game.throwError('Sprite cannot be cloned because one is not ready.');
+            this.game.throwError(ErrorMessages.CLONED_NOT_READY);
         }
 
         if (!stage) {

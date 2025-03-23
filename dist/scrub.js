@@ -80,19 +80,32 @@ var __values = (this && this.__values) || function(o) {
     throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
 };
 var Game = (function () {
-    function Game(width, height, canvasId) {
+    function Game(width, height, canvasId, displayErrors, locale) {
         if (width === void 0) { width = null; }
         if (height === void 0) { height = null; }
         if (canvasId === void 0) { canvasId = null; }
-        this.displayErrors = false;
+        if (displayErrors === void 0) { displayErrors = true; }
+        if (locale === void 0) { locale = 'ru'; }
+        var _this = this;
         this.debugMode = 'none';
         this.debugBody = false;
         this.stages = [];
+        this.activeStage = null;
+        this.styles = null;
         this.loadedStages = 0;
         this.onReadyCallbacks = [];
         this.onReadyPending = true;
         this.running = false;
         this.pendingRun = false;
+        this.reportedError = false;
+        this._displayErrors = true;
+        this._locale = 'ru';
+        this._displayErrors = displayErrors;
+        this._locale = locale;
+        this.validatorFactory = new ValidatorFactory(this);
+        window.onerror = function () {
+            _this.reportError(ErrorMessages.getMessage(ErrorMessages.SCRIPT_ERROR, _this._locale));
+        };
         this.id = Symbol();
         this.eventEmitter = new EventEmitter();
         this.keyboard = new Keyboard();
@@ -113,6 +126,9 @@ var Game = (function () {
         this.context = this.canvas.getContext('2d');
         Registry.getInstance().set('game', this);
         this.addListeners();
+        if (this.displayErrors) {
+            return this.validatorFactory.createValidator(this, 'Game');
+        }
     }
     Game.prototype.addStage = function (stage) {
         this.stages.push(stage);
@@ -136,7 +152,7 @@ var Game = (function () {
             stage = this.stages[0];
         }
         if (!stage) {
-            this.throwError('You need create Stage instance before run game.');
+            this.throwError(ErrorMessages.NEED_STAGE_BEFORE_RUN_GAME);
         }
         if (!this.running) {
             try {
@@ -173,6 +189,20 @@ var Game = (function () {
         }
         this.running = false;
     };
+    Object.defineProperty(Game.prototype, "displayErrors", {
+        get: function () {
+            return this._displayErrors;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Game.prototype, "locale", {
+        get: function () {
+            return this._locale;
+        },
+        enumerable: false,
+        configurable: true
+    });
     Object.defineProperty(Game.prototype, "width", {
         get: function () {
             return this.canvas.width;
@@ -219,11 +249,20 @@ var Game = (function () {
     Game.prototype.getRandom = function (min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     };
-    Game.prototype.throwError = function (message) {
-        if (this.displayErrors) {
-            alert(message);
-        }
+    Game.prototype.throwError = function (messageId, variables) {
+        if (variables === void 0) { variables = null; }
+        var message = ErrorMessages.getMessage(messageId, this.locale, variables);
+        this.throwErrorRaw(message);
+    };
+    Game.prototype.throwErrorRaw = function (message) {
+        this.reportError(message);
         throw new Error(message);
+    };
+    Game.prototype.reportError = function (message) {
+        if (this._displayErrors && !this.reportedError) {
+            alert(message);
+            this.reportedError = true;
+        }
     };
     Game.prototype.addListeners = function () {
         var _this = this;
@@ -761,12 +800,16 @@ var Sprite = (function () {
         this.size = 100;
         this.rotateStyle = 'normal';
         this.singleBody = true;
+        this.game = null;
+        this.body = null;
         this.costumeIndex = null;
         this.costume = null;
+        this.stage = null;
         this.costumes = [];
         this.costumeNames = [];
         this.sounds = [];
         this.soundNames = [];
+        this.phrase = null;
         this.phraseLiveTime = null;
         this._x = 0;
         this._y = 0;
@@ -782,7 +825,7 @@ var Sprite = (function () {
         this.id = Symbol();
         this.eventEmitter = new EventEmitter();
         if (!Registry.getInstance().has('game')) {
-            this.game.throwError('You need create Game instance before Sprite instance.');
+            this.game.throwError(ErrorMessages.NEED_CREATE_GAME_BEFORE_SPRITE);
         }
         this.game = Registry.getInstance().get('game');
         this.stage = stage;
@@ -790,7 +833,7 @@ var Sprite = (function () {
             this.stage = this.game.getLastStage();
         }
         if (!this.stage) {
-            this.game.throwError('You need create Stage instance before Sprite instance.');
+            this.game.throwError(ErrorMessages.NEED_CREATE_STAGE_BEFORE_SPRITE);
         }
         this._layer = layer;
         this.stage.addSprite(this);
@@ -824,6 +867,9 @@ var Sprite = (function () {
         }
         this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
         this.addListeners();
+        if (this.game.displayErrors) {
+            return this.game.validatorFactory.createValidator(this, 'Sprite');
+        }
     }
     Sprite.prototype.isReady = function () {
         return this.loadedCostumes == this.costumes.length && this.loadedSounds == this.sounds.length;
@@ -860,7 +906,7 @@ var Sprite = (function () {
         };
         image.addEventListener('load', onLoadImage);
         image.addEventListener('error', function () {
-            _this.game.throwError('Costume image "' + costumePath + '" was not loaded. Check that the path is correct.');
+            _this.game.throwError(ErrorMessages.COSTUME_NOT_LOADED, { costumePath: costumePath });
         });
     };
     Sprite.prototype.cloneCostume = function (costume, name) {
@@ -981,7 +1027,7 @@ var Sprite = (function () {
             this.switchCostume(costumeIndex);
         }
         else {
-            this.game.throwError('Name ' + costumeName + 'not found.');
+            this.game.throwError(ErrorMessages.COSTUME_NAME_NOT_FOUND, { costumeName: costumeName });
         }
     };
     Sprite.prototype.nextCostume = function () {
@@ -1036,7 +1082,7 @@ var Sprite = (function () {
             }
         }
         else {
-            this.game.throwError('Sound with index "' + soundIndex + '" not found.');
+            this.game.throwError(ErrorMessages.SOUND_INDEX_NOT_FOUND, { soundIndex: soundIndex });
         }
     };
     Sprite.prototype.pauseSound = function (soundIndex) {
@@ -1045,7 +1091,7 @@ var Sprite = (function () {
             sound.pause();
         }
         else {
-            this.game.throwError('Sound with index "' + soundIndex + '" not found.');
+            this.game.throwError(ErrorMessages.SOUND_INDEX_NOT_FOUND, { soundIndex: soundIndex });
         }
     };
     Sprite.prototype.playSoundByName = function (soundName, volume, currentTime) {
@@ -1056,7 +1102,7 @@ var Sprite = (function () {
             this.playSound(soundIndex, volume, currentTime);
         }
         else {
-            this.game.throwError('Name ' + soundName + 'not found.');
+            this.game.throwError(ErrorMessages.SOUND_NAME_NOT_FOUND, { soundName: soundName });
         }
     };
     Sprite.prototype.pauseSoundByName = function (soundName) {
@@ -1065,7 +1111,7 @@ var Sprite = (function () {
             this.pauseSound(soundIndex);
         }
         else {
-            this.game.throwError('Name ' + soundName + 'not found.');
+            this.game.throwError(ErrorMessages.SOUND_NAME_NOT_FOUND, { soundName: soundName });
         }
     };
     Sprite.prototype.move = function (steps) {
@@ -1256,7 +1302,7 @@ var Sprite = (function () {
         var e_11, _a, e_12, _b;
         if (stage === void 0) { stage = null; }
         if (!this.isReady()) {
-            this.game.throwError('Sprite cannot be cloned because one is not ready.');
+            this.game.throwError(ErrorMessages.CLONED_NOT_READY);
         }
         if (!stage) {
             stage = this.stage;
@@ -1596,12 +1642,14 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
 };
 var MultiplayerGame = (function (_super) {
     __extends(MultiplayerGame, _super);
-    function MultiplayerGame(socketUrl, gameToken, width, height, canvasId, lobbyId, autoSyncGame, multiplayerOptions) {
+    function MultiplayerGame(socketUrl, gameToken, width, height, canvasId, displayErrors, locale, lobbyId, autoSyncGame, multiplayerOptions) {
         if (canvasId === void 0) { canvasId = null; }
+        if (displayErrors === void 0) { displayErrors = true; }
+        if (locale === void 0) { locale = 'ru'; }
         if (lobbyId === void 0) { lobbyId = 0; }
         if (autoSyncGame === void 0) { autoSyncGame = 0; }
         if (multiplayerOptions === void 0) { multiplayerOptions = {}; }
-        var _this = _super.call(this, width, height, canvasId) || this;
+        var _this = _super.call(this, width, height, canvasId, displayErrors, locale) || this;
         _this.autoSyncGameTimeout = 0;
         _this.players = [];
         _this.sharedObjects = [];
@@ -2316,6 +2364,7 @@ var Stage = (function () {
     function Stage(background, padding) {
         if (background === void 0) { background = null; }
         if (padding === void 0) { padding = 0; }
+        this.backgroundColor = null;
         this.background = null;
         this.backgroundIndex = null;
         this.backgrounds = [];
@@ -2330,11 +2379,14 @@ var Stage = (function () {
         this.onReadyPending = true;
         this.scheduledCallbacks = [];
         this._stopped = true;
+        this._padding = 0;
         this._running = false;
+        this.stoppedTime = null;
+        this.diffTime = null;
         this.id = Symbol();
         this.eventEmitter = new EventEmitter();
         if (!Registry.getInstance().has('game')) {
-            this.game.throwError('You need create Game instance before Stage instance.');
+            throw new Error('You need create Game instance before Stage instance.');
         }
         this.game = Registry.getInstance().get('game');
         this.collisionSystem = new CollisionSystem();
@@ -2348,6 +2400,9 @@ var Stage = (function () {
         this.game.addStage(this);
         this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
         this.stoppedTime = Date.now();
+        if (this.game.displayErrors) {
+            return this.game.validatorFactory.createValidator(this, 'Stage');
+        }
     }
     Object.defineProperty(Stage.prototype, "padding", {
         get: function () {
@@ -2405,7 +2460,7 @@ var Stage = (function () {
     };
     Stage.prototype.removeSprite = function (sprite) {
         if (!this.sprites.has(sprite.layer)) {
-            this.game.throwError('The layer "' + sprite.layer + '" not defined in the stage.');
+            this.game.throwErrorRaw('The layer "' + sprite.layer + '" not defined in the stage.');
         }
         var layerSprites = this.sprites.get(sprite.layer);
         layerSprites.splice(layerSprites.indexOf(sprite), 1);
@@ -2431,7 +2486,7 @@ var Stage = (function () {
         };
         background.addEventListener('load', onLoad);
         background.addEventListener('error', function () {
-            _this.game.throwError('Background image "' + backgroundPath + '" was not loaded. Check that the path is correct.');
+            _this.game.throwError(ErrorMessages.BACKGROUND_NOT_LOADED, { backgroundPath: backgroundPath });
         });
     };
     Stage.prototype.switchBackground = function (backgroundIndex) {
@@ -4013,6 +4068,92 @@ var JetcodeSocketConnection = (function () {
     };
     return JetcodeSocketConnection;
 }());
+var ErrorMessages = (function () {
+    function ErrorMessages() {
+    }
+    ErrorMessages.getMessage = function (messageId, locale, variables) {
+        if (variables === void 0) { variables = null; }
+        if (!ErrorMessages.messages[messageId]) {
+            throw new Error('Message is not defined.');
+        }
+        if (!ErrorMessages.messages[messageId][locale]) {
+            throw new Error('Message for this locale is not defined.');
+        }
+        var message = ErrorMessages.messages[messageId][locale];
+        if (variables) {
+            message = ErrorMessages.replaceVariables(message, variables);
+        }
+        return message;
+    };
+    ErrorMessages.replaceVariables = function (message, variables) {
+        return message.replace(/\${([^}]+)}/g, function (match, key) {
+            return variables[key] || '';
+        });
+    };
+    ErrorMessages.SCRIPT_ERROR = 'script_error';
+    ErrorMessages.MISTAKE_METHOD = 'mistake_method';
+    ErrorMessages.MISTAKE_METHOD_WITH_CLOSEST = 'mistake_method_with_closest';
+    ErrorMessages.NEED_STAGE_BEFORE_RUN_GAME = 'need_stage_before_run_game';
+    ErrorMessages.NEED_CREATE_GAME_BEFORE_SPRITE = 'need_create_game_before_sprite';
+    ErrorMessages.NEED_CREATE_STAGE_BEFORE_SPRITE = 'need_create_stage_before_sprite';
+    ErrorMessages.COSTUME_NOT_LOADED = 'costume_not_loaded';
+    ErrorMessages.BACKGROUND_NOT_LOADED = 'background_not_loaded';
+    ErrorMessages.CLONED_NOT_READY = 'cloned_not_ready';
+    ErrorMessages.SOUND_INDEX_NOT_FOUND = 'sound_index_not_found';
+    ErrorMessages.SOUND_NAME_NOT_FOUND = 'sound_name_not_found';
+    ErrorMessages.COSTUME_NAME_NOT_FOUND = 'costume_name_not_found';
+    ErrorMessages.messages = {
+        script_error: {
+            'ru': 'Произошла ошибка, ознакомьтесь с подробной информацией в консоли.',
+            'en': 'An error has occurred, take a look at the details in the console.'
+        },
+        mistake_method: {
+            'ru': '${className}: Метод или свойство "${prop}" не найдено',
+            'en': '${className}: Method "${prop}" not found'
+        },
+        mistake_method_with_closest: {
+            'ru': '${className}: Метод или свойство "${prop}" не найдено. Возможно вы имели ввиду: ${closestString}?',
+            'en': '${className}: Method "${prop}" not found. Did you mean: ${closestString}?'
+        },
+        need_stage_before_run_game: {
+            'ru': 'Вам нужно создать экземпляр Stage перед запуском игры.',
+            'en': 'You need create Stage instance before run game.'
+        },
+        need_create_game_before_sprite: {
+            'ru': 'Вам нужно создать экземпляр класса Game перед экземпляром класса Sprite.',
+            'en': 'You need create Game instance before Sprite instance.'
+        },
+        need_create_stage_before_sprite: {
+            'ru': 'Вам нужно создать экземпляр класса Stage перед экземпляром класса Sprite.',
+            'en': 'You need create Stage instance before Sprite instance.'
+        },
+        costume_not_loaded: {
+            'ru': 'Изображение для костюма "${costumePath}" не было загружено. Проверьте правильность пути.',
+            'en': 'Costume image "${costumePath}" was not loaded. Check that the path is correct.'
+        },
+        background_not_loaded: {
+            'ru': 'Изображение для фона "${backgroundPath}" не было загружено. Проверьте правильность пути.',
+            'en': 'Background image "${backgroundPath}" was not loaded. Check that the path is correct.'
+        },
+        cloned_not_ready: {
+            'ru': 'Спрайт не может быть клонирован, потому что он еще не готов. Попробуйте использовать метод sprite.onReady()',
+            'en': 'Sprite cannot be cloned because one is not ready. Try using the sprite.onReady() method.'
+        },
+        sound_index_not_found: {
+            'ru': 'Звук с индексом "${soundIndex}" не найден.',
+            'en': 'Sound with index "${soundIndex}" not found.'
+        },
+        sound_name_not_found: {
+            'ru': 'Звук с именем "${soundName}" не найден.',
+            'en': 'Sound with name "${soundName}" not found.'
+        },
+        costume_name_not_found: {
+            'ru': 'Костуюм с именем "${costumeName}" не найден.',
+            'en': 'Costume with name "${costumeName}" not found.'
+        }
+    };
+    return ErrorMessages;
+}());
 var Keyboard = (function () {
     function Keyboard() {
         var _this = this;
@@ -4123,5 +4264,68 @@ var Styles = (function () {
         this.canvas.height = height ? height : document.body.clientHeight;
     };
     return Styles;
+}());
+var ValidatorFactory = (function () {
+    function ValidatorFactory(game) {
+        this.game = game;
+    }
+    ValidatorFactory.prototype.createValidator = function (target, className) {
+        var game = this.game;
+        return new Proxy(target, {
+            get: function (obj, prop) {
+                if (prop in obj) {
+                    return obj[prop];
+                }
+                if (typeof prop === 'symbol' || prop.startsWith('_')) {
+                    return undefined;
+                }
+                var methods = Object.getOwnPropertyNames(Object.getPrototypeOf(obj))
+                    .filter(function (m) { return m !== 'constructor'; });
+                var closest = ValidatorFactory.findClosestMethods(prop.toString(), methods);
+                if (closest.length) {
+                    var closestString = closest.join(', ');
+                    game.throwError(ErrorMessages.MISTAKE_METHOD_WITH_CLOSEST, { className: className, prop: prop, closestString: closestString });
+                }
+                else {
+                    game.throwError(ErrorMessages.MISTAKE_METHOD, { className: className, prop: prop });
+                }
+            }
+        });
+    };
+    ValidatorFactory.findClosestMethods = function (input, methods, maxDistance) {
+        if (maxDistance === void 0) { maxDistance = 2; }
+        return methods
+            .map(function (method) { return ({
+            name: method,
+            distance: ValidatorFactory.levenshteinDistance(input.toLowerCase(), method.toLowerCase())
+        }); })
+            .filter(function (_a) {
+            var distance = _a.distance;
+            return distance <= maxDistance;
+        })
+            .sort(function (a, b) { return a.distance - b.distance; })
+            .map(function (_a) {
+            var name = _a.name;
+            return name;
+        })
+            .slice(0, 3);
+    };
+    ValidatorFactory.levenshteinDistance = function (a, b) {
+        var matrix = Array(a.length + 1)
+            .fill(null)
+            .map(function () { return Array(b.length + 1).fill(0); });
+        for (var i = 0; i <= a.length; i++)
+            matrix[i][0] = i;
+        for (var j = 0; j <= b.length; j++)
+            matrix[0][j] = j;
+        for (var i = 1; i <= a.length; i++) {
+            for (var j = 1; j <= b.length; j++) {
+                var cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
+            }
+        }
+        return matrix[a.length][b.length];
+    };
+    return ValidatorFactory;
 }());
 //# sourceMappingURL=scrub.js.map

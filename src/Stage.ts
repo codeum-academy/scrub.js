@@ -7,7 +7,7 @@ class Stage {
     canvas: HTMLCanvasElement;
     context: CanvasRenderingContext2D;
     collisionSystem: CollisionSystem;
-    backgroundColor;
+    backgroundColor = null;
 
     private game: Game;
     private background = null;
@@ -28,10 +28,10 @@ class Stage {
     private onReadyPending = true;
     private scheduledCallbacks: Array<ScheduledCallbackItem> = [];
     private _stopped = true;
-    private _padding: number;
+    private _padding = 0;
     private _running = false;
-    private stoppedTime: number;
-    private diffTime: number;
+    private stoppedTime = null;
+    private diffTime = null;
     private scheduledCallbackExecutor: ScheduledCallbackExecutor;
 
     constructor(background: string = null, padding = 0) {
@@ -39,7 +39,7 @@ class Stage {
         this.eventEmitter = new EventEmitter();
 
         if (!Registry.getInstance().has('game')) {
-            this.game.throwError('You need create Game instance before Stage instance.');
+            throw new Error('You need create Game instance before Stage instance.');
         }
         this.game = Registry.getInstance().get('game');
 
@@ -58,6 +58,10 @@ class Stage {
 
         this.scheduledCallbackExecutor = new ScheduledCallbackExecutor(this);
         this.stoppedTime = Date.now();
+
+        if (this.game.displayErrors) {
+            return this.game.validatorFactory.createValidator(this, 'Stage');
+        }
     }
 
     set padding(padding: number) {
@@ -106,7 +110,7 @@ class Stage {
 
     removeSprite(sprite: Sprite): void {
         if (!this.sprites.has(sprite.layer)) {
-            this.game.throwError('The layer "' + sprite.layer + '" not defined in the stage.');
+            this.game.throwErrorRaw('The layer "' + sprite.layer + '" not defined in the stage.');
         }
 
         const layerSprites = this.sprites.get(sprite.layer);
@@ -139,7 +143,7 @@ class Stage {
         background.addEventListener('load', onLoad);
 
         background.addEventListener('error', () => {
-            this.game.throwError('Background image "' + backgroundPath + '" was not loaded. Check that the path is correct.');
+            this.game.throwError(ErrorMessages.BACKGROUND_NOT_LOADED, {backgroundPath});
         });
     }
 

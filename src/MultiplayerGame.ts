@@ -21,11 +21,13 @@ class MultiplayerGame extends Game {
     width: number,
     height: number,
     canvasId: string = null,
+    displayErrors = true,
+    locale: Locale = 'ru',
     lobbyId: string | number = 0,
     autoSyncGame: number = 0,
     multiplayerOptions: any = {}
   ) {
-    super(width, height, canvasId);
+    super(width, height, canvasId, displayErrors, locale);
 
     this.autoSyncGameTimeout = autoSyncGame;
 

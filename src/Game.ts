@@ -1,11 +1,14 @@
+type Locale = 'ru' | 'en';
+
 class Game {
     id: Symbol;
     eventEmitter: EventEmitter;
+    validatorFactory: ValidatorFactory;
     canvas: HTMLCanvasElement;
     context: CanvasRenderingContext2D;
     keyboard: Keyboard;
     mouse: Mouse;
-    displayErrors = false;
+
     debugMode = 'none'; // none, hover, forever;
     debugBody = false;
 
@@ -16,15 +19,26 @@ class Game {
     static readonly SPRITE_SOUND_READY_EVENT = 'scrubjs.sprite.sound_ready';
 
     private stages: Stage[] = [];
-    private activeStage: Stage;
-    private styles;
+    private activeStage: Stage = null
+    private styles = null;
     private loadedStages = 0;
     private onReadyCallbacks = [];
     private onReadyPending = true;
     protected running = false;
     private pendingRun = false;
+    private reportedError = false;
+    private _displayErrors = true;
+    private _locale = 'ru';
 
-    constructor(width: number = null, height: number = null, canvasId: string = null) {
+    constructor(width: number = null, height: number = null, canvasId: string = null, displayErrors = true, locale: Locale = 'ru') {
+        this._displayErrors = displayErrors;
+        this._locale = locale;
+        this.validatorFactory = new ValidatorFactory(this);
+
+        window.onerror = () => {
+            this.reportError(ErrorMessages.getMessage(ErrorMessages.SCRIPT_ERROR, this._locale));
+        };
+
         this.id = Symbol();
         this.eventEmitter = new EventEmitter();
         this.keyboard = new Keyboard();
@@ -50,6 +64,10 @@ class Game {
         Registry.getInstance().set('game', this);
 
         this.addListeners();
+
+        if (this.displayErrors) {
+            return this.validatorFactory.createValidator(this, 'Game');
+        }
     }
 
     addStage(stage: Stage) {
@@ -78,7 +96,7 @@ class Game {
         }
 
         if (!stage) {
-            this.throwError('You need create Stage instance before run game.');
+            this.throwError(ErrorMessages.NEED_STAGE_BEFORE_RUN_GAME);
         }
 
         if (!this.running) { // only first run
@@ -112,6 +130,14 @@ class Game {
         }
 
         this.running = false;
+    }
+
+    get displayErrors(): boolean {
+        return this._displayErrors;
+    }
+
+    get locale(): string {
+        return this._locale;
     }
 
     get width(): number {
@@ -165,12 +191,24 @@ class Game {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
-    throwError(message) {
-        if (this.displayErrors) {
-            alert(message);
-        }
+    throwError(messageId: string, variables: {} | null = null) {
+        const message = ErrorMessages.getMessage(messageId, this.locale, variables);
+
+        this.throwErrorRaw(message);
+    }
+
+    throwErrorRaw(message: string) {
+        this.reportError(message);
 
         throw new Error(message);
+    }
+
+    private reportError(message) {
+        if (this._displayErrors && !this.reportedError) {
+            alert(message);
+
+            this.reportedError = true;
+        }
     }
 
     private addListeners() {
