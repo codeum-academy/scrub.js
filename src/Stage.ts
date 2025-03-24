@@ -15,10 +15,6 @@ class Stage {
     private backgrounds = [];
     private sprites = new Map<number, Sprite[]>();
     private drawings = new Map<number, DrawingCallbackFunction[]>();
-    private topEdge: Polygon;
-    private rightEdge: Polygon;
-    private bottomEdge: Polygon;
-    private leftEdge: Polygon;
     private addedSprites = 0;
     private loadedSprites = 0;
     private loadedBackgrounds = 0;
@@ -28,13 +24,12 @@ class Stage {
     private onReadyPending = true;
     private scheduledCallbacks: Array<ScheduledCallbackItem> = [];
     private _stopped = true;
-    private _padding = 0;
     private _running = false;
     private stoppedTime = null;
     private diffTime = null;
     private scheduledCallbackExecutor: ScheduledCallbackExecutor;
 
-    constructor(background: string = null, padding = 0) {
+    constructor(background: string = null) {
         if (!Registry.getInstance().has('game')) {
             throw new Error('You need create Game instance before Stage instance.');
         }
@@ -57,7 +52,6 @@ class Stage {
             stage.addBackground(background);
         }
 
-        stage.padding = padding;
         stage.addListeners();
 
         stage.game.addStage(stage);
@@ -66,19 +60,6 @@ class Stage {
         stage.stoppedTime = Date.now();
 
         return stage;
-    }
-
-    set padding(padding: number) {
-        this._padding = padding;
-
-        this.topEdge = this.collisionSystem.createPolygon(0, 0, [[padding, padding], [this.width - padding, padding]]);
-        this.rightEdge = this.collisionSystem.createPolygon(0, 0, [[this.width - padding, padding], [this.width - padding, this.height - padding]]);
-        this.bottomEdge = this.collisionSystem.createPolygon(0, 0, [[this.width - padding, this.height - padding], [padding, this.height - padding]]);
-        this.leftEdge = this.collisionSystem.createPolygon(0, 0, [[padding, this.height - padding], [padding, padding]]);
-    }
-
-    get padding(): number {
-        return this._padding;
     }
 
     get width(): number {
@@ -382,22 +363,6 @@ class Stage {
         }
 
         this.stoppedTime = Date.now();
-    }
-
-    getTopEdge(): Polygon {
-        return this.topEdge;
-    }
-
-    getRightEdge(): Polygon {
-        return this.rightEdge;
-    }
-
-    getBottomEdge(): Polygon {
-        return this.bottomEdge;
-    }
-
-    getLeftEdge(): Polygon {
-        return this.leftEdge;
     }
 
     getSprites() {

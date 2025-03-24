@@ -1,6 +1,7 @@
 class Sprite {
     id: Symbol;
     eventEmitter: EventEmitter;
+    collisionResult: CollisionResult;
     name = 'No name';
     size = 100;
     rotateStyle = 'normal'; // 'normal', 'leftRight', 'none'
@@ -44,6 +45,7 @@ class Sprite {
 
         sprite.id = Symbol();
         sprite.eventEmitter = new EventEmitter();
+        sprite.collisionResult = new CollisionResult();
 
         sprite.stage = stage;
         if (!this.stage) {
@@ -425,7 +427,7 @@ class Sprite {
         }
     }
 
-    touchSprite(sprite: Sprite, result: CollisionResult = null): boolean {
+    touchSprite(sprite: Sprite): boolean {
         if (
             sprite.hidden ||
             this.hidden ||
@@ -439,16 +441,16 @@ class Sprite {
             return false;
         }
 
-        return this.body.collides(sprite.getBody(), result);
+        return this.body.collides(sprite.getBody(), this.collisionResult);
     }
 
-    touchSprites(sprites: Sprite[], result: CollisionResult = null): boolean {
+    touchSprites(sprites: Sprite[]): boolean {
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
         for (const sprite of sprites) {
-            if (this.touchSprite(sprite, result)) {
+            if (this.touchSprite(sprite)) {
                 return true;
             }
         }
@@ -456,7 +458,7 @@ class Sprite {
         return false;
     }
 
-    touchPotentialSprites(sprites: Sprite[], result: CollisionResult = null): boolean {
+    touchPotentialSprites(sprites: Sprite[]): boolean {
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
@@ -474,7 +476,7 @@ class Sprite {
         }
 
         for (const potentialSprite of potentialSprites) {
-            if (this.touchSprite(potentialSprite, result)) {
+            if (this.touchSprite(potentialSprite)) {
                 return true;
             }
         }
@@ -482,69 +484,173 @@ class Sprite {
         return false;
     }
 
-    touchEdge(result: CollisionResult = null): boolean {
-        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
-            return false;
+    touchEdge(): boolean {
+        const result = this.getPureCollisionResult();
+        const gameWidth = this.game.width;
+        const gameHeight = this.game.height;
+
+        // top edge
+        if (this.topY < 0) {
+            result.collision = true;
+            result.overlap = -this.topY;
+            result.overlap_y = -1;
+
+            return true;
         }
 
-        if (this.body.collides(this.stage.getTopEdge(), result)) {
-            return true;
+        // bottom edge
+        if (this.bottomY > gameHeight) {
+            result.collision = true;
+            result.overlap = this.bottomY - gameHeight;
+            result.overlap_y = 1;
 
-        } else if (this.body.collides(this.stage.getRightEdge(), result)) {
             return true;
+        }
 
-        } else if (this.body.collides(this.stage.getBottomEdge(), result)) {
+        // left edge
+        if (this.leftX < 0) {
+            result.collision = true;
+            result.overlap = -this.leftX;
+            result.overlap_x = -1;
+
             return true;
+        }
 
-        } else if (this.body.collides(this.stage.getLeftEdge(), result)) {
+        // right edge
+        if (this.rightX > gameWidth) {
+            result.collision = true;
+            result.overlap = this.rightX - gameWidth;
+            result.overlap_x = 1;
+
             return true;
         }
 
         return false;
     }
 
-    touchTopEdge(result: CollisionResult = null): boolean {
+    touchTopEdge(): boolean {
+        this.clearCollisionResult();
+
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
-        return this.body.collides(this.stage.getTopEdge(), result);
+        if (this.topY < 0) {
+            this.collisionResult.collision = true;
+            this.collisionResult.overlap = -this.topY;
+            this.collisionResult.overlap_y = -1;
+
+            return true;
+        }
+
+        return false;
     }
 
-    touchLeftEdge(result: CollisionResult = null): boolean {
+    touchBottomEdge(): boolean {
+        this.clearCollisionResult();
+
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
-        return this.body.collides(this.stage.getLeftEdge(), result);
+        if (this.bottomY > this.game.height) {
+            this.collisionResult.collision = true;
+            this.collisionResult.overlap = this.bottomY - this.game.height;
+            this.collisionResult.overlap_y = 1;
+
+            return true;
+        }
+
+        return false;
     }
 
-    touchRightEdge(result: CollisionResult = null): boolean {
+    touchLeftEdge(): boolean {
+        this.clearCollisionResult();
+
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
-        return this.body.collides(this.stage.getRightEdge(), result);
+        if (this.leftX < 0) {
+            this.collisionResult.collision = true;
+            this.collisionResult.overlap = -this.leftX;
+            this.collisionResult.overlap_x = -1;
+
+            return true;
+        }
+
+        return false;
     }
 
-    touchBottomEdge(result: CollisionResult = null): boolean {
+    touchRightEdge(): boolean {
+        this.clearCollisionResult();
+
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
-        return this.body.collides(this.stage.getBottomEdge(), result);
+        if (this.rightX > this.game.width) {
+            this.collisionResult.collision = true;
+            this.collisionResult.overlap = this.rightX - this.game.width;
+            this.collisionResult.overlap_x = 1;
+
+            return true;
+        }
+
+        return false;
     }
 
-    touchMouse(result: CollisionResult = null): boolean {
-        return this.touchMousePoint(this.game.getMousePoint(), result);
+    get overlap() {
+        if (!this.collisionResult.collision) {
+            return 0;
+        }
+
+        return this.collisionResult.overlap;
     }
 
-    touchMousePoint(mousePoint: Point, result: CollisionResult = null): boolean {
+    get overlapX() {
+        if (!this.collisionResult.collision) {
+            return 0;
+        }
+
+        return this.collisionResult.overlap_x * this.collisionResult.overlap;
+    }
+
+    get overlapY() {
+        if (!this.collisionResult.collision) {
+            return 0;
+        }
+
+        return this.collisionResult.overlap_y * this.collisionResult.overlap;
+    }
+
+    clearCollisionResult(): void {
+        this.collisionResult.collision = false;
+        this.collisionResult.a = null;
+        this.collisionResult.b = null;
+        this.collisionResult.a_in_b = false;
+        this.collisionResult.b_in_a = false;
+        this.collisionResult.overlap = 0;
+        this.collisionResult.overlap_x = 0;
+        this.collisionResult.overlap_y = 0;
+    }
+
+    getPureCollisionResult(): CollisionResult {
+        this.clearCollisionResult();
+
+        return this.collisionResult;
+    }
+
+    touchMouse(): boolean {
+        return this.touchMousePoint(this.game.getMousePoint());
+    }
+
+    touchMousePoint(mousePoint: Point): boolean {
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
 
-        return this.body.collides(mousePoint, result);
+        return this.body.collides(mousePoint, this.collisionResult);
     }
 
     pointForward(sprite): void {
@@ -776,6 +882,22 @@ class Sprite {
 
     get realY(): number {
         return this.y - this.height / 2;
+    }
+
+    get rightX(): number {
+        return this.x + this.width / 2;
+    }
+
+    get leftX(): number {
+        return this.x - this.width / 2;
+    }
+
+    get topY(): number {
+        return this.y - this.height / 2;
+    }
+
+    get bottomY(): number {
+        return this.y + this.height / 2;
     }
 
     set hidden(value: boolean) {

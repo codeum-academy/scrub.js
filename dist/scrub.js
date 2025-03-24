@@ -833,6 +833,7 @@ var Sprite = (function () {
         }
         sprite.id = Symbol();
         sprite.eventEmitter = new EventEmitter();
+        sprite.collisionResult = new CollisionResult();
         sprite.stage = stage;
         if (!this.stage) {
             sprite.stage = this.game.getLastStage();
@@ -1129,8 +1130,7 @@ var Sprite = (function () {
             this.direction *= -1;
         }
     };
-    Sprite.prototype.touchSprite = function (sprite, result) {
-        if (result === void 0) { result = null; }
+    Sprite.prototype.touchSprite = function (sprite) {
         if (sprite.hidden ||
             this.hidden ||
             sprite.stopped ||
@@ -1141,18 +1141,17 @@ var Sprite = (function () {
             !(this.body instanceof Body)) {
             return false;
         }
-        return this.body.collides(sprite.getBody(), result);
+        return this.body.collides(sprite.getBody(), this.collisionResult);
     };
-    Sprite.prototype.touchSprites = function (sprites, result) {
+    Sprite.prototype.touchSprites = function (sprites) {
         var e_8, _a;
-        if (result === void 0) { result = null; }
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
         try {
             for (var sprites_1 = __values(sprites), sprites_1_1 = sprites_1.next(); !sprites_1_1.done; sprites_1_1 = sprites_1.next()) {
                 var sprite = sprites_1_1.value;
-                if (this.touchSprite(sprite, result)) {
+                if (this.touchSprite(sprite)) {
                     return true;
                 }
             }
@@ -1166,9 +1165,8 @@ var Sprite = (function () {
         }
         return false;
     };
-    Sprite.prototype.touchPotentialSprites = function (sprites, result) {
+    Sprite.prototype.touchPotentialSprites = function (sprites) {
         var e_9, _a, e_10, _b;
-        if (result === void 0) { result = null; }
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
@@ -1195,7 +1193,7 @@ var Sprite = (function () {
         try {
             for (var potentialSprites_1 = __values(potentialSprites), potentialSprites_1_1 = potentialSprites_1.next(); !potentialSprites_1_1.done; potentialSprites_1_1 = potentialSprites_1.next()) {
                 var potentialSprite = potentialSprites_1_1.value;
-                if (this.touchSprite(potentialSprite, result)) {
+                if (this.touchSprite(potentialSprite)) {
                     return true;
                 }
             }
@@ -1209,63 +1207,140 @@ var Sprite = (function () {
         }
         return false;
     };
-    Sprite.prototype.touchEdge = function (result) {
-        if (result === void 0) { result = null; }
-        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
-            return false;
-        }
-        if (this.body.collides(this.stage.getTopEdge(), result)) {
+    Sprite.prototype.touchEdge = function () {
+        var result = this.getPureCollisionResult();
+        var gameWidth = this.game.width;
+        var gameHeight = this.game.height;
+        if (this.topY < 0) {
+            result.collision = true;
+            result.overlap = -this.topY;
+            result.overlap_y = -1;
             return true;
         }
-        else if (this.body.collides(this.stage.getRightEdge(), result)) {
+        if (this.bottomY > gameHeight) {
+            result.collision = true;
+            result.overlap = this.bottomY - gameHeight;
+            result.overlap_y = 1;
             return true;
         }
-        else if (this.body.collides(this.stage.getBottomEdge(), result)) {
+        if (this.leftX < 0) {
+            result.collision = true;
+            result.overlap = -this.leftX;
+            result.overlap_x = -1;
             return true;
         }
-        else if (this.body.collides(this.stage.getLeftEdge(), result)) {
+        if (this.rightX > gameWidth) {
+            result.collision = true;
+            result.overlap = this.rightX - gameWidth;
+            result.overlap_x = 1;
             return true;
         }
         return false;
     };
-    Sprite.prototype.touchTopEdge = function (result) {
-        if (result === void 0) { result = null; }
+    Sprite.prototype.touchTopEdge = function () {
+        this.clearCollisionResult();
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
-        return this.body.collides(this.stage.getTopEdge(), result);
+        if (this.topY < 0) {
+            this.collisionResult.collision = true;
+            this.collisionResult.overlap = -this.topY;
+            this.collisionResult.overlap_y = -1;
+            return true;
+        }
+        return false;
     };
-    Sprite.prototype.touchLeftEdge = function (result) {
-        if (result === void 0) { result = null; }
+    Sprite.prototype.touchBottomEdge = function () {
+        this.clearCollisionResult();
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
-        return this.body.collides(this.stage.getLeftEdge(), result);
+        if (this.bottomY > this.game.height) {
+            this.collisionResult.collision = true;
+            this.collisionResult.overlap = this.bottomY - this.game.height;
+            this.collisionResult.overlap_y = 1;
+            return true;
+        }
+        return false;
     };
-    Sprite.prototype.touchRightEdge = function (result) {
-        if (result === void 0) { result = null; }
+    Sprite.prototype.touchLeftEdge = function () {
+        this.clearCollisionResult();
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
-        return this.body.collides(this.stage.getRightEdge(), result);
+        if (this.leftX < 0) {
+            this.collisionResult.collision = true;
+            this.collisionResult.overlap = -this.leftX;
+            this.collisionResult.overlap_x = -1;
+            return true;
+        }
+        return false;
     };
-    Sprite.prototype.touchBottomEdge = function (result) {
-        if (result === void 0) { result = null; }
+    Sprite.prototype.touchRightEdge = function () {
+        this.clearCollisionResult();
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
-        return this.body.collides(this.stage.getBottomEdge(), result);
+        if (this.rightX > this.game.width) {
+            this.collisionResult.collision = true;
+            this.collisionResult.overlap = this.rightX - this.game.width;
+            this.collisionResult.overlap_x = 1;
+            return true;
+        }
+        return false;
     };
-    Sprite.prototype.touchMouse = function (result) {
-        if (result === void 0) { result = null; }
-        return this.touchMousePoint(this.game.getMousePoint(), result);
+    Object.defineProperty(Sprite.prototype, "overlap", {
+        get: function () {
+            if (!this.collisionResult.collision) {
+                return 0;
+            }
+            return this.collisionResult.overlap;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "overlapX", {
+        get: function () {
+            if (!this.collisionResult.collision) {
+                return 0;
+            }
+            return this.collisionResult.overlap_x * this.collisionResult.overlap;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "overlapY", {
+        get: function () {
+            if (!this.collisionResult.collision) {
+                return 0;
+            }
+            return this.collisionResult.overlap_y * this.collisionResult.overlap;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Sprite.prototype.clearCollisionResult = function () {
+        this.collisionResult.collision = false;
+        this.collisionResult.a = null;
+        this.collisionResult.b = null;
+        this.collisionResult.a_in_b = false;
+        this.collisionResult.b_in_a = false;
+        this.collisionResult.overlap = 0;
+        this.collisionResult.overlap_x = 0;
+        this.collisionResult.overlap_y = 0;
     };
-    Sprite.prototype.touchMousePoint = function (mousePoint, result) {
-        if (result === void 0) { result = null; }
+    Sprite.prototype.getPureCollisionResult = function () {
+        this.clearCollisionResult();
+        return this.collisionResult;
+    };
+    Sprite.prototype.touchMouse = function () {
+        return this.touchMousePoint(this.game.getMousePoint());
+    };
+    Sprite.prototype.touchMousePoint = function (mousePoint) {
         if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
             return false;
         }
-        return this.body.collides(mousePoint, result);
+        return this.body.collides(mousePoint, this.collisionResult);
     };
     Sprite.prototype.pointForward = function (sprite) {
         this.direction = (Math.atan2(this.y - sprite.y, this.x - sprite.x) / Math.PI * 180) - 90;
@@ -1493,6 +1568,34 @@ var Sprite = (function () {
     Object.defineProperty(Sprite.prototype, "realY", {
         get: function () {
             return this.y - this.height / 2;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "rightX", {
+        get: function () {
+            return this.x + this.width / 2;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "leftX", {
+        get: function () {
+            return this.x - this.width / 2;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "topY", {
+        get: function () {
+            return this.y - this.height / 2;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "bottomY", {
+        get: function () {
+            return this.y + this.height / 2;
         },
         enumerable: false,
         configurable: true
@@ -2372,9 +2475,8 @@ var SharedData = (function () {
     return SharedData;
 }());
 var Stage = (function () {
-    function Stage(background, padding) {
+    function Stage(background) {
         if (background === void 0) { background = null; }
-        if (padding === void 0) { padding = 0; }
         this.backgroundColor = null;
         this.background = null;
         this.backgroundIndex = null;
@@ -2390,7 +2492,6 @@ var Stage = (function () {
         this.onReadyPending = true;
         this.scheduledCallbacks = [];
         this._stopped = true;
-        this._padding = 0;
         this._running = false;
         this.stoppedTime = null;
         this.diffTime = null;
@@ -2410,27 +2511,12 @@ var Stage = (function () {
         if (background) {
             stage.addBackground(background);
         }
-        stage.padding = padding;
         stage.addListeners();
         stage.game.addStage(stage);
         stage.scheduledCallbackExecutor = new ScheduledCallbackExecutor(stage);
         stage.stoppedTime = Date.now();
         return stage;
     }
-    Object.defineProperty(Stage.prototype, "padding", {
-        get: function () {
-            return this._padding;
-        },
-        set: function (padding) {
-            this._padding = padding;
-            this.topEdge = this.collisionSystem.createPolygon(0, 0, [[padding, padding], [this.width - padding, padding]]);
-            this.rightEdge = this.collisionSystem.createPolygon(0, 0, [[this.width - padding, padding], [this.width - padding, this.height - padding]]);
-            this.bottomEdge = this.collisionSystem.createPolygon(0, 0, [[this.width - padding, this.height - padding], [padding, this.height - padding]]);
-            this.leftEdge = this.collisionSystem.createPolygon(0, 0, [[padding, this.height - padding], [padding, padding]]);
-        },
-        enumerable: false,
-        configurable: true
-    });
     Object.defineProperty(Stage.prototype, "width", {
         get: function () {
             return this.canvas.width;
@@ -2750,18 +2836,6 @@ var Stage = (function () {
             finally { if (e_27) throw e_27.error; }
         }
         this.stoppedTime = Date.now();
-    };
-    Stage.prototype.getTopEdge = function () {
-        return this.topEdge;
-    };
-    Stage.prototype.getRightEdge = function () {
-        return this.rightEdge;
-    };
-    Stage.prototype.getBottomEdge = function () {
-        return this.bottomEdge;
-    };
-    Stage.prototype.getLeftEdge = function () {
-        return this.leftEdge;
     };
     Stage.prototype.getSprites = function () {
         return Array.from(this.sprites.values()).reduce(function (accumulator, currentValue) { return accumulator.concat(currentValue); }, []);
