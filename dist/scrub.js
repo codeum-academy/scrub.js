@@ -798,7 +798,6 @@ var Sprite = (function () {
         if (costumePaths === void 0) { costumePaths = []; }
         if (soundPaths === void 0) { soundPaths = []; }
         this.name = 'No name';
-        this.size = 100;
         this.rotateStyle = 'normal';
         this.singleBody = true;
         this.game = null;
@@ -815,6 +814,7 @@ var Sprite = (function () {
         this._x = 0;
         this._y = 0;
         this._direction = 0;
+        this._size = 100;
         this._hidden = false;
         this._deleted = false;
         this._stopped = true;
@@ -1387,12 +1387,12 @@ var Sprite = (function () {
         }
         var clone = new Sprite(stage, this.layer);
         clone.name = this.name;
-        clone.size = this.size;
         clone.rotateStyle = this.rotateStyle;
         clone.singleBody = this.singleBody;
         clone.x = this.x;
         clone.y = this.y;
         clone.direction = this.direction;
+        clone.size = this.size;
         clone.hidden = this.hidden;
         clone._deleted = this.deleted;
         clone._stopped = this.stopped;
@@ -1596,6 +1596,20 @@ var Sprite = (function () {
     Object.defineProperty(Sprite.prototype, "bottomY", {
         get: function () {
             return this.y + this.height / 2;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "size", {
+        get: function () {
+            return this._size;
+        },
+        set: function (value) {
+            this._size = value;
+            if (this.body) {
+                this.body.scale_x = this._size / 100;
+                this.body.scale_y = this._size / 100;
+            }
         },
         enumerable: false,
         configurable: true

@@ -3,7 +3,7 @@ class Sprite {
     eventEmitter: EventEmitter;
     collisionResult: CollisionResult;
     name = 'No name';
-    size = 100;
+
     rotateStyle = 'normal'; // 'normal', 'leftRight', 'none'
     singleBody = true;
 
@@ -21,6 +21,7 @@ class Sprite {
     private _x = 0;
     private _y = 0;
     private _direction = 0;
+    private _size = 100;
     private _hidden = false;
     protected _deleted = false;
     private _stopped = true;
@@ -706,12 +707,12 @@ class Sprite {
         const clone = new Sprite(stage, this.layer);
 
         clone.name = this.name;
-        clone.size = this.size;
         clone.rotateStyle = this.rotateStyle;
         clone.singleBody = this.singleBody;
         clone.x = this.x;
         clone.y = this.y;
         clone.direction = this.direction;
+        clone.size = this.size;
         clone.hidden = this.hidden;
         clone._deleted = this.deleted;
         clone._stopped = this.stopped;
@@ -898,6 +899,19 @@ class Sprite {
 
     get bottomY(): number {
         return this.y + this.height / 2;
+    }
+
+    set size(value: number) {
+        this._size = value;
+
+        if (this.body) {
+            this.body.scale_x = this._size / 100;
+            this.body.scale_y = this._size / 100;
+        }
+    }
+
+    get size(): number {
+        return this._size;
     }
 
     set hidden(value: boolean) {
