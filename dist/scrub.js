@@ -1642,10 +1642,9 @@ var Sprite = (function () {
         get: function () {
             return this._layer;
         },
-        set: function (value) {
-            this.stage.removeSprite(this, this._layer);
-            this._layer = value;
-            this.stage.addSprite(this, value);
+        set: function (newLayer) {
+            this.stage.changeSpriteLayer(this, this._layer, newLayer);
+            this._layer = newLayer;
         },
         enumerable: false,
         configurable: true
@@ -2584,6 +2583,24 @@ var Stage = (function () {
             this.loadedSprites--;
         }
         this.addedSprites--;
+    };
+    Stage.prototype.changeSpriteLayer = function (sprite, fromLayer, toLayer) {
+        if (!this.sprites.has(fromLayer)) {
+            this.game.throwErrorRaw('The layer "' + fromLayer + '" not defined in the stage.');
+        }
+        var fromLayerSprites = this.sprites.get(fromLayer);
+        fromLayerSprites.splice(fromLayerSprites.indexOf(sprite), 1);
+        if (!fromLayerSprites.length) {
+            this.sprites.delete(fromLayer);
+        }
+        var toLayerSprites = [];
+        if (this.sprites.has(toLayer)) {
+            toLayerSprites = this.sprites.get(toLayer);
+        }
+        else {
+            this.sprites.set(toLayer, toLayerSprites);
+        }
+        toLayerSprites.push(sprite);
     };
     Stage.prototype.addBackground = function (backgroundPath) {
         var _this = this;

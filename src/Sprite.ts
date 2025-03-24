@@ -940,10 +940,9 @@ class Sprite {
         return this._stopped;
     }
 
-    set layer(value: number) {
-        this.stage.removeSprite(this, this._layer);
-        this._layer = value;
-        this.stage.addSprite(this, value);
+    set layer(newLayer: number) {
+        this.stage.changeSpriteLayer(this, this._layer, newLayer);
+        this._layer = newLayer;
     }
 
     get layer(): number {

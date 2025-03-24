@@ -112,6 +112,29 @@ class Stage {
         this.addedSprites--;
     }
 
+    changeSpriteLayer(sprite: Sprite, fromLayer: number, toLayer: number): void {
+        if (!this.sprites.has(fromLayer)) {
+            this.game.throwErrorRaw('The layer "' + fromLayer + '" not defined in the stage.');
+        }
+
+        const fromLayerSprites = this.sprites.get(fromLayer);
+        fromLayerSprites.splice(fromLayerSprites.indexOf(sprite), 1);
+
+        if (!fromLayerSprites.length) {
+            this.sprites.delete(fromLayer);
+        }
+
+        let toLayerSprites = [];
+        if (this.sprites.has(toLayer)) {
+            toLayerSprites = this.sprites.get(toLayer);
+
+        } else {
+            this.sprites.set(toLayer, toLayerSprites);
+        }
+
+        toLayerSprites.push(sprite);
+    }
+
     addBackground(backgroundPath: string): void {
         const background = new Image();
         background.src = backgroundPath;
