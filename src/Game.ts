@@ -11,6 +11,7 @@ class Game {
 
     debugMode = 'none'; // none, hover, forever;
     debugBody = false;
+    debugColor = 'red';
 
     static readonly STAGE_READY_EVENT = 'scrubjs.stage.ready';
     static readonly STAGE_BACKGROUND_READY_EVENT = 'scrubjs.stage.background_ready';

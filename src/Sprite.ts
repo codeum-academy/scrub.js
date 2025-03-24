@@ -809,6 +809,10 @@ class Sprite {
         return this.costumeNames[this.costumeIndex];
     }
 
+    getCostumeIndex(): string {
+        return this.costumeIndex;
+    }
+
     set direction (direction: number) {
         if ((direction * 0) !== 0) { // d is +/-Infinity or NaN
             return;

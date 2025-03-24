@@ -249,11 +249,6 @@ class Stage {
             this.context.drawImage(this.background, 0, 0, this.width, this.height);
         }
 
-        if (this.game.debugBody) {
-            this.collisionSystem.draw(this.context);
-            this.context.stroke();
-        }
-
         let layers = Array.from(this.sprites.keys()).concat(Array.from(this.drawings.keys()));
         layers = layers.filter((item, pos) => layers.indexOf(item) === pos);
         layers = layers.sort((a, b) => a - b);
@@ -280,8 +275,9 @@ class Stage {
                             const x = sprite.x - (this.context.measureText(sprite.name).width / 2);
                             let y = sprite.realY + sprite.height + 20;
 
+                            this.context.fillStyle = this.game.debugColor;
+
                             this.context.font = '16px Arial';
-                            this.context.fillStyle = 'black';
                             this.context.fillText(sprite.name, x, y);
                             y += 20;
 
@@ -292,7 +288,7 @@ class Stage {
                             y += 20;
                             this.context.fillText("direction: " + sprite.direction, x, y);
                             y += 20;
-                            this.context.fillText("costume: " + sprite.getCostumeName(), x, y);
+                            this.context.fillText("costume: " + sprite.getCostumeIndex(), x, y);
                         };
 
                         if (this.game.debugMode === 'hover') {
@@ -318,6 +314,13 @@ class Stage {
                     }
                 }
             }
+        }
+
+        if (this.game.debugBody) {
+            this.context.strokeStyle = this.game.debugColor;
+            this.context.beginPath();
+            this.collisionSystem.draw(this.context);
+            this.context.stroke();
         }
     }
 

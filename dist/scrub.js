@@ -88,6 +88,7 @@ var Game = (function () {
         if (locale === void 0) { locale = 'ru'; }
         this.debugMode = 'none';
         this.debugBody = false;
+        this.debugColor = 'red';
         this.stages = [];
         this.activeStage = null;
         this.styles = null;
@@ -1487,6 +1488,9 @@ var Sprite = (function () {
     Sprite.prototype.getCostumeName = function () {
         return this.costumeNames[this.costumeIndex];
     };
+    Sprite.prototype.getCostumeIndex = function () {
+        return this.costumeIndex;
+    };
     Object.defineProperty(Sprite.prototype, "direction", {
         get: function () {
             return this._direction;
@@ -2679,10 +2683,6 @@ var Stage = (function () {
         if (this.background) {
             this.context.drawImage(this.background, 0, 0, this.width, this.height);
         }
-        if (this.game.debugBody) {
-            this.collisionSystem.draw(this.context);
-            this.context.stroke();
-        }
         var layers = Array.from(this.sprites.keys()).concat(Array.from(this.drawings.keys()));
         layers = layers.filter(function (item, pos) { return layers.indexOf(item) === pos; });
         layers = layers.sort(function (a, b) { return a - b; });
@@ -2715,8 +2715,8 @@ var Stage = (function () {
                             var fn = function () {
                                 var x = sprite.x - (_this.context.measureText(sprite.name).width / 2);
                                 var y = sprite.realY + sprite.height + 20;
+                                _this.context.fillStyle = _this.game.debugColor;
                                 _this.context.font = '16px Arial';
-                                _this.context.fillStyle = 'black';
                                 _this.context.fillText(sprite.name, x, y);
                                 y += 20;
                                 _this.context.font = '14px Arial';
@@ -2726,7 +2726,7 @@ var Stage = (function () {
                                 y += 20;
                                 _this.context.fillText("direction: " + sprite.direction, x, y);
                                 y += 20;
-                                _this.context.fillText("costume: " + sprite.getCostumeName(), x, y);
+                                _this.context.fillText("costume: " + sprite.getCostumeIndex(), x, y);
                             };
                             if (this_1.game.debugMode === 'hover') {
                                 if (sprite.touchMouse()) {
@@ -2770,6 +2770,12 @@ var Stage = (function () {
                 if (layers_1_1 && !layers_1_1.done && (_a = layers_1.return)) _a.call(layers_1);
             }
             finally { if (e_22) throw e_22.error; }
+        }
+        if (this.game.debugBody) {
+            this.context.strokeStyle = this.game.debugColor;
+            this.context.beginPath();
+            this.collisionSystem.draw(this.context);
+            this.context.stroke();
         }
     };
     Stage.prototype.timeout = function (callback, timeout) {
