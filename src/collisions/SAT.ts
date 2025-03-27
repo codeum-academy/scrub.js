@@ -1,8 +1,8 @@
 /**
  * Determines if two bodies are colliding using the Separating Axis Theorem
  * @private
- * @param {Circle|Polygon|Point} a The source body to test
- * @param {Circle|Polygon|Point} b The target body to test against
+ * @param {CircleCollider|PolygonCollider|PointCollider} a The source body to test
+ * @param {CircleCollider|PolygonCollider|PointCollider} b The target body to test against
  * @param {CollisionResult} [result = null] A Result object on which to store information about the collision
  * @param {Boolean} [aabb = true] Set to false to skip the AABB test (useful if you use your own collision heuristic)
  * @returns {Boolean}
@@ -75,8 +75,8 @@ function SAT(a, b, result = null, aabb = true) {
 
 /**
  * Determines if two bodies' axis aligned bounding boxes are colliding
- * @param {Circle|Polygon|Point} a The source body to test
- * @param {Circle|Polygon|Point} b The target body to test against
+ * @param {CircleCollider|PolygonCollider|PointCollider} a The source body to test
+ * @param {CircleCollider|PolygonCollider|PointCollider} b The target body to test against
  */
 function aabbAABB(a, b) {
 	const a_polygon = a._polygon;
@@ -102,8 +102,8 @@ function aabbAABB(a, b) {
 
 /**
  * Determines if two polygons are colliding
- * @param {Polygon} a The source polygon to test
- * @param {Polygon} b The target polygon to test against
+ * @param {PolygonCollider} a The source polygon to test
+ * @param {PolygonCollider} b The target polygon to test against
  * @param {CollisionResult} [result = null] A Result object on which to store information about the collision
  * @returns {Boolean}
  */
@@ -149,8 +149,8 @@ function polygonPolygon(a, b, result = null) {
 
 /**
  * Determines if a polygon and a circle are colliding
- * @param {Polygon} a The source polygon to test
- * @param {Circle} b The target circle to test against
+ * @param {PolygonCollider} a The source polygon to test
+ * @param {CircleCollider} b The target circle to test against
  * @param {CollisionResult} [result = null] A Result object on which to store information about the collision
  * @param {Boolean} [reverse = false] Set to true to reverse a and b in the result parameter when testing circle->polygon instead of polygon->circle
  * @returns {Boolean}
@@ -283,8 +283,8 @@ function polygonCircle(a, b, result = null, reverse = false) {
 
 /**
  * Determines if two circles are colliding
- * @param {Circle} a The source circle to test
- * @param {Circle} b The target circle to test against
+ * @param {CircleCollider} a The source circle to test
+ * @param {CircleCollider} b The target circle to test against
  * @param {CollisionResult} [result = null] A Result object on which to store information about the collision
  * @returns {Boolean}
  */

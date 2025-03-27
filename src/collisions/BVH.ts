@@ -11,7 +11,7 @@ class BVH {
 
 	/**
 	 * Inserts a body into the BVH
-	 * @param {Circle|Polygon|Point} body The body to insert
+	 * @param {CircleCollider|PolygonCollider|PointCollider} body The body to insert
 	 * @param {Boolean} [updating = false] Set to true if the body already exists in the BVH (used internally when updating the body's position)
 	 */
 	insert(body, updating = false) {
@@ -135,7 +135,7 @@ class BVH {
 
 	/**
 	 * Removes a body from the BVH
-	 * @param {Circle|Polygon|Point} body The body to remove
+	 * @param {CircleCollider|PolygonCollider|PointCollider} body The body to remove
 	 * @param {Boolean} [updating = false] Set to true if this is a temporary removal (used internally when updating the body's position)
 	 */
 	remove(body, updating = false) {
@@ -264,8 +264,8 @@ class BVH {
 
 	/**
 	 * Returns a list of potential collisions for a body
-	 * @param {Circle|Polygon|Point} body The body to test
-	 * @returns {Array<Body>}
+	 * @param {CircleCollider|PolygonCollider|PointCollider} body The body to test
+	 * @returns {Array<Collider>}
 	 */
 	potentials(body) {
 		const results = [];

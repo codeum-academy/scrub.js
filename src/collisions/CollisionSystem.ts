@@ -13,16 +13,16 @@ class CollisionSystem {
 	}
 
 	/**
-	 * Creates a {@link Circle} and inserts it into the collision system
+	 * Creates a {@link CircleCollider} and inserts it into the collision system
 	 * @param {Number} [x = 0] The starting X coordinate
 	 * @param {Number} [y = 0] The starting Y coordinate
 	 * @param {Number} [radius = 0] The radius
 	 * @param {Number} [scale = 1] The scale
 	 * @param {Number} [padding = 0] The amount to pad the bounding volume when testing for potential collisions
-	 * @returns {Circle}
+	 * @returns {CircleCollider}
 	 */
 	createCircle(x = 0, y = 0, radius = 0, scale = 1, padding = 0) {
-		const body = new Circle(x, y, radius, scale, padding);
+		const body = new CircleCollider(x, y, radius, scale, padding);
 
 		this._bvh.insert(body);
 
@@ -30,7 +30,7 @@ class CollisionSystem {
 	}
 
 	/**
-	 * Creates a {@link Polygon} and inserts it into the collision system
+	 * Creates a {@link PolygonCollider} and inserts it into the collision system
 	 * @param {Number} [x = 0] The starting X coordinate
 	 * @param {Number} [y = 0] The starting Y coordinate
 	 * @param {Array<Number[]>} [points = []] An array of coordinate pairs making up the polygon - [[x1, y1], [x2, y2], ...]
@@ -38,10 +38,10 @@ class CollisionSystem {
 	 * @param {Number} [scale_x = 1] The starting scale along the X axis
 	 * @param {Number} [scale_y = 1] The starting scale long the Y axis
 	 * @param {Number} [padding = 0] The amount to pad the bounding volume when testing for potential collisions
-	 * @returns {Polygon}
+	 * @returns {PolygonCollider}
 	 */
 	createPolygon(x = 0, y = 0, points = [[0, 0]], angle = 0, scale_x = 1, scale_y = 1, padding = 0) {
-		const body = new Polygon(x, y, points, angle, scale_x, scale_y, padding);
+		const body = new PolygonCollider(x, y, points, angle, scale_x, scale_y, padding);
 
 		this._bvh.insert(body);
 
@@ -49,14 +49,14 @@ class CollisionSystem {
 	}
 
 	/**
-	 * Creates a {@link Point} and inserts it into the collision system
+	 * Creates a {@link PointCollider} and inserts it into the collision system
 	 * @param {Number} [x = 0] The starting X coordinate
 	 * @param {Number} [y = 0] The starting Y coordinate
 	 * @param {Number} [padding = 0] The amount to pad the bounding volume when testing for potential collisions
-	 * @returns {Point}
+	 * @returns {PointCollider}
 	 */
 	createPoint(x = 0, y = 0, padding = 0) {
-		const body = new Point(x, y, padding);
+		const body = new PointCollider(x, y, padding);
 
 		this._bvh.insert(body);
 
@@ -128,8 +128,8 @@ class CollisionSystem {
 
 	/**
 	 * Returns a list of potential collisions for a body
-	 * @param {Circle|Polygon|Point} body The body to test for potential collisions against
-	 * @returns {Array<Body>}
+	 * @param {CircleCollider|PolygonCollider|PointCollider} body The body to test for potential collisions against
+	 * @returns {Array<Collider>}
 	 */
 	potentials(body) {
 		return this._bvh.potentials(body);
@@ -138,7 +138,7 @@ class CollisionSystem {
 	/**
 	 * Determines if two bodies are colliding
 	 * @param source
-	 * @param {Circle|Polygon|Point} target The target body to test against
+	 * @param {CircleCollider|PolygonCollider|PointCollider} target The target body to test against
 	 * @param {CollisionResult} [result = null] A Result object on which to store information about the collision
 	 * @param {Boolean} [aabb = true] Set to false to skip the AABB test (useful if you use your own potential collision heuristic)
 	 * @returns {Boolean}

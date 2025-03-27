@@ -3,12 +3,10 @@ class Sprite {
     eventEmitter: EventEmitter;
     collisionResult: CollisionResult;
     name = 'No name';
-
     rotateStyle = 'normal'; // 'normal', 'leftRight', 'none'
-    singleBody = true;
 
     private game: Game = null;
-    private body: Polygon = null
+    private collider: Collider = null
     protected costumeIndex = null;
     private costume: Costume = null;
     protected stage = null
@@ -20,6 +18,9 @@ class Sprite {
     private phraseLiveTime = null;
     private _x = 0;
     private _y = 0;
+    private _width = 0;
+    private _height = 0;
+    private _colliderNone = false;
     private _direction = 0;
     private _size = 100;
     private _hidden = false;
@@ -32,6 +33,8 @@ class Sprite {
     private onReadyPending = true;
     private scheduledCallbacks: Array<ScheduledCallbackItem> = [];
     private scheduledCallbackExecutor: ScheduledCallbackExecutor;
+    private _drawings:  DrawingCallbackFunction[] = [];
+    private pendingCostumeGrids = 0;
 
     constructor(stage: Stage = null, layer = 1, costumePaths = [], soundPaths = []) {
         if (!Registry.getInstance().has('game')) {
@@ -79,7 +82,7 @@ class Sprite {
     }
 
     isReady() {
-        return this.loadedCostumes == this.costumes.length && this.loadedSounds == this.sounds.length;
+        return this.loadedCostumes == this.costumes.length && this.pendingCostumeGrids === 0 && this.loadedSounds == this.sounds.length;
     }
 
     onReady(callback) {
@@ -88,25 +91,14 @@ class Sprite {
 
     addCostume(
         costumePath: string,
-        name: string = null,
-        x: number = 0,
-        y: number = 0,
-        width: number = null,
-        height: number = null,
-        paddingTop: number = 0,
-        paddingRight: number = 0,
-        paddingBottom: number = 0,
-        paddingLeft: number = 0
+        options?: CostumeOptions
     ): void {
         const costume = new Costume();
-
-        if (!name) {
-            const costumeIndex = this.costumes.length;
-            name = 'No name ' + costumeIndex;
-        }
+        const costumeIndex = this.costumes.length;
+        const costumeName = (options?.name ?? 'Costume') + costumeIndex;
 
         this.costumes.push(costume);
-        this.costumeNames.push(name);
+        this.costumeNames.push(costumeName);
 
         const image = new Image();
         image.src = costumePath;
@@ -116,19 +108,7 @@ class Sprite {
                 return;
             }
 
-            this.addCostumeByImage(
-              costume,
-              image,
-              x,
-              y,
-              width,
-              height,
-              paddingTop,
-              paddingRight,
-              paddingBottom,
-              paddingLeft
-            );
-
+            this.addCostumeByImage(costume, image, options);
             image.removeEventListener('load', onLoadImage);
         };
         image.addEventListener('load', onLoadImage);
@@ -139,54 +119,36 @@ class Sprite {
     }
 
     private cloneCostume(costume: Costume, name: string) {
-        costume.body = null;
-
         this.costumes.push(costume);
         this.costumeNames.push(name);
-
-        this.addCostumeByImage(
-            costume,
-            costume.image,
-            costume.x,
-            costume.y,
-            costume.width,
-            costume.height
-        );
+        this.loadedCostumes++;
     }
 
     private addCostumeByImage(
         costume: Costume,
         image: HTMLImageElement,
-        x: number = 0,
-        y: number = 0,
-        width: number = null,
-        height: number = null,
-        paddingTop: number = 0,
-        paddingRight: number = 0,
-        paddingBottom: number = 0,
-        paddingLeft: number = 0
+        options?: CostumeOptions
     ): void {
-        if (width === null) {
-            width = image.naturalWidth;
-        }
+        const x = options?.imageX ?? 0;
+        const y = options?.imageY ?? 0;
+        const width = options?.imageWidth ?? image.naturalWidth;
+        const height = options?.imageHeight ?? image.naturalHeight;
 
-        if (height === null) {
-            height = image.naturalHeight;
-        }
+        const colliderPadding= options?.colliderPadding ?? 0;
+        const colliderPaddingTop = (options?.colliderPaddingTop ?? 0) + colliderPadding;
+        const colliderPaddingRight = (options?.colliderPaddingRight ?? 0) + colliderPadding;
+        const colliderPaddingBottom = (options?.colliderPaddingBottom ?? 0) + colliderPadding;
+        const colliderPaddingLeft = (options?.colliderPaddingLeft ?? 0) + colliderPadding;
 
         costume.image = image;
         costume.x = x;
         costume.y = y;
         costume.width = width;
         costume.height = height;
-
-        costume.body = new Polygon(this.x, this.y, [
-            [(costume.width / 2) * -1 + paddingLeft * -1, (costume.height / 2) * -1 + paddingTop * -1],
-            [costume.width / 2 + paddingRight, (costume.height / 2) * -1 + paddingTop * -1],
-            [costume.width / 2 + paddingRight, costume.height / 2  + paddingBottom],
-            [(costume.width / 2) * -1 + paddingLeft * -1, costume.height / 2  + paddingBottom]
-        ]);
-
+        costume.colliderPaddingTop = colliderPaddingTop;
+        costume.colliderPaddingRight = colliderPaddingRight;
+        costume.colliderPaddingLeft = colliderPaddingLeft;
+        costume.colliderPaddingBottom = colliderPaddingBottom
         costume.ready = true;
 
         this.eventEmitter.emit(Game.SPRITE_COSTUME_READY_EVENT, {
@@ -195,28 +157,24 @@ class Sprite {
         });
     }
 
-    addCostumes(
+    addCostumeGrid(
         costumePath: string,
-        name: string = null,
-        cols: number,
-        rows: number = 1,
-        limit: number = null,
-        offset: number = null,
-        paddingTop: number = 0,
-        paddingRight: number = 0,
-        paddingBottom: number = 0,
-        paddingLeft: number = 0
+        options: GridCostumeOptions
     ) {
         const image = new Image();
         image.src = costumePath;
 
-        if (!name) {
-            name = 'No name';
-        }
+        let costumeName = options?.name ?? 'Costume';
+        this.pendingCostumeGrids++;
 
         const onLoadImage = () => {
             image.naturalWidth;
             image.naturalHeight;
+
+            let cols = options.cols;
+            let rows = options.rows;
+            let limit = options.limit;
+            let offset = options.offset;
 
             const chunkWidth = image.naturalWidth / cols;
             const chunkHeight = image.naturalHeight / rows;
@@ -248,26 +206,25 @@ class Sprite {
 
                         const costume = new Costume();
 
-                        let costumeName = name;
-                        if (costumeName !== null) {
-                            costumeName += ' ' + costumeIndex;
-                        }
-
                         this.costumes.push(costume);
-                        this.costumeNames.push(name);
+                        this.costumeNames.push(costumeName + costumeIndex);
 
                         this.addCostumeByImage(
-                          costume,
-                          image,
-                          x,
-                          y,
-                          chunkWidth,
-                          chunkHeight,
-                          paddingTop,
-                          paddingRight,
-                          paddingBottom,
-                          paddingLeft
+                            costume,
+                            image,
+                            {
+                                imageX: x + (options?.imageX ?? 0),
+                                imageY: y + (options?.imageY ?? 0),
+                                imageWidth: (options?.imageWidth ?? chunkWidth),
+                                imageHeight: (options?.imageHeight ?? chunkHeight),
+                                colliderPadding: options.colliderPadding,
+                                colliderPaddingBottom: options.colliderPaddingBottom,
+                                colliderPaddingTop: options.colliderPaddingTop,
+                                colliderPaddingRight: options.colliderPaddingRight,
+                                colliderPaddingLeft: options.colliderPaddingLeft
+                            }
                         );
+
                         costumeIndex++;
                     }
 
@@ -278,12 +235,13 @@ class Sprite {
                 y += chunkHeight;
             }
 
+            this.pendingCostumeGrids--;
+            this.tryDoOnReady();
             image.removeEventListener('load', onLoadImage);
         };
 
         image.addEventListener('load', onLoadImage);
     }
-
 
     switchCostume(costumeIndex): void {
         if (this.deleted) {
@@ -295,10 +253,6 @@ class Sprite {
         if (costume instanceof Costume && costume.ready) {
             this.costumeIndex = costumeIndex;
             this.costume = costume;
-
-            if (!(this.body instanceof Polygon)) {
-                this.createBody(costume);
-            }
         }
     }
 
@@ -355,10 +309,7 @@ class Sprite {
         this.sounds.push(sound);
         this.soundNames.push(name);
 
-        this.eventEmitter.emit(Game.SPRITE_SOUND_READY_EVENT, {
-            sound: sound,
-            spriteId: this.id
-        });
+        this.loadedSounds++;
     }
 
     playSound(soundIndex, volume: number = null, currentTime: number = null): void {
@@ -414,8 +365,10 @@ class Sprite {
     }
 
     move(steps): void {
-        this.x += (steps * Math.sin(this.direction * Math.PI / 180));
-        this.y -= (steps * Math.cos(this.direction * Math.PI / 180));
+        const angleRadians = this.angleRadians;
+
+        this.x += (steps * Math.sin(angleRadians));
+        this.y -= (steps * Math.cos(angleRadians));
     }
 
     bounceOnEdge(): void {
@@ -436,17 +389,17 @@ class Sprite {
             this.stopped ||
             sprite.deleted ||
             this.deleted ||
-            !(sprite.getBody() instanceof Body) ||
-            !(this.body instanceof Body)
+            !sprite.getCollider() ||
+            !this.collider
         ) {
             return false;
         }
 
-        return this.body.collides(sprite.getBody(), this.collisionResult);
+        return this.collider.collides(sprite.getCollider(), this.collisionResult);
     }
 
     touchSprites(sprites: Sprite[]): boolean {
-        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !this.collider) {
             return false;
         }
 
@@ -460,18 +413,18 @@ class Sprite {
     }
 
     touchPotentialSprites(sprites: Sprite[]): boolean {
-        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !this.collider) {
             return false;
         }
 
-        const potentials = this.body.potentials();
+        const potentials = this.collider.potentials();
         if (!potentials.length) {
             return false;
         }
 
         const potentialSprites = [];
         for (const sprite of sprites) {
-            if (potentials.indexOf(sprite.getBody()) > -1) {
+            if (potentials.indexOf(sprite.getCollider()) > -1) {
                 potentialSprites.push(sprite);
             }
         }
@@ -486,6 +439,10 @@ class Sprite {
     }
 
     touchEdge(): boolean {
+        if (this.hidden || this.stopped || this.deleted || !this.collider) {
+            return false;
+        }
+
         const result = this.getPureCollisionResult();
         const gameWidth = this.game.width;
         const gameHeight = this.game.height;
@@ -532,7 +489,7 @@ class Sprite {
     touchTopEdge(): boolean {
         this.clearCollisionResult();
 
-        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !this.collider) {
             return false;
         }
 
@@ -550,7 +507,7 @@ class Sprite {
     touchBottomEdge(): boolean {
         this.clearCollisionResult();
 
-        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !this.collider) {
             return false;
         }
 
@@ -568,7 +525,7 @@ class Sprite {
     touchLeftEdge(): boolean {
         this.clearCollisionResult();
 
-        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !this.collider) {
             return false;
         }
 
@@ -586,7 +543,7 @@ class Sprite {
     touchRightEdge(): boolean {
         this.clearCollisionResult();
 
-        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
+        if (this.hidden || this.stopped || this.deleted || !this.collider) {
             return false;
         }
 
@@ -625,6 +582,10 @@ class Sprite {
         return this.collisionResult.overlap_y * this.collisionResult.overlap;
     }
 
+    get drawings(): DrawingCallbackFunction[] {
+        return this._drawings;
+    }
+
     clearCollisionResult(): void {
         this.collisionResult.collision = false;
         this.collisionResult.a = null;
@@ -646,12 +607,12 @@ class Sprite {
         return this.touchMousePoint(this.game.getMousePoint());
     }
 
-    touchMousePoint(mousePoint: Point): boolean {
-        if (this.hidden || this.stopped || this.deleted || !(this.body instanceof Body)) {
+    touchMousePoint(mousePoint: PointCollider): boolean {
+        if (this.hidden || this.stopped || this.deleted || !this.collider) {
             return false;
         }
 
-        return this.body.collides(mousePoint, this.collisionResult);
+        return this.collider.collides(mousePoint, this.collisionResult);
     }
 
     pointForward(sprite): void {
@@ -708,7 +669,6 @@ class Sprite {
 
         clone.name = this.name;
         clone.rotateStyle = this.rotateStyle;
-        clone.singleBody = this.singleBody;
         clone.x = this.x;
         clone.y = this.y;
         clone.direction = this.direction;
@@ -725,6 +685,8 @@ class Sprite {
         for (let [soundIndex, sound] of this.sounds.entries()) {
             clone.cloneSound(sound, this.soundNames[soundIndex]);
         }
+
+        clone.ready();
 
         return clone;
     }
@@ -753,6 +715,10 @@ class Sprite {
         this.scheduledCallbacks.push(new ScheduledCallbackItem(callback, state, timeout, finishCallback));
     }
 
+    pen(callback: DrawingCallbackFunction): void {
+        this._drawings.push(callback);
+    }
+
     update(diffTime: number) {
         if (this.deleted) {
             return;
@@ -771,7 +737,7 @@ class Sprite {
         this.stage.removeSprite(this, this.layer);
 
         this.eventEmitter.clearAll();
-        this.removeBody();
+        this.removeCollider();
         this.scheduledCallbackExecutor = null;
 
         let props = Object.keys(this);
@@ -797,8 +763,68 @@ class Sprite {
         this._stopped = true;
     }
 
-    getBody(): Polygon {
-        return this.body;
+    getCollider(): Collider {
+        return this.collider;
+    }
+
+    setCollider(collider: Collider): void {
+        this.collider = collider;
+        this.stage.collisionSystem.insert(this.collider);
+    }
+
+    removeCollider() {
+        if (this.collider) {
+            this.stage.collisionSystem.remove(this.collider);
+            this.collider = null;
+        }
+    }
+
+    setRectCollider(width: number, height: number) {
+        let angle = 0;
+        if (this.rotateStyle != 'leftRight') {
+            angle = this.direction * 3.14 / 180; // to radian
+        }
+
+        this.collider = new PolygonCollider(this.x, this.y, [
+            [(width / 2) * -1, (height / 2) * -1],
+            [width / 2, (height / 2) * -1],
+            [width / 2, height / 2],
+            [(width / 2) * -1, height / 2]
+        ], angle, this.size / 100, this.size / 100);
+        this._width = width;
+        this._height = height;
+
+        this.stage.collisionSystem.insert(this.collider);
+    }
+
+    setPolygonCollider(points: [number, number][] = []) {
+        let angleRadians = 0;
+        if (this.rotateStyle != 'leftRight') {
+            angleRadians = this.angleRadians;
+        }
+
+        const centroid = this.calculateCentroid(points);
+
+        const centeredPoints: [number, number][] = points.map(point => [
+            point[0] - centroid.x,
+            point[1] - centroid.y
+        ]);
+
+        this.collider = new PolygonCollider(this.x, this.y, centeredPoints, angleRadians, this.size / 100, this.size / 100);
+
+        const { width, height } = this.calculatePolygonSize(centeredPoints);
+        this._width = width;
+        this._height = height;
+
+        this.stage.collisionSystem.insert(this.collider);
+    }
+
+    setCircleCollider(radius: number) {
+        this.collider = new CircleCollider(this.x, this.y, radius, this.size / 100);
+        this._width = radius * 2;
+        this._height = radius * 2;
+
+        this.stage.collisionSystem.insert(this.collider);
     }
 
     getCostume(): Costume {
@@ -826,14 +852,13 @@ class Sprite {
 
         this._direction = (direction > 360) ? direction - 360 : direction;
 
-        if (this.body instanceof Polygon) {
+        if (this.collider instanceof PolygonCollider) {
             if (this.rotateStyle == 'leftRight') {
-                this.body.angle = 0; // to radian
+                this.collider.angle = 0; // to radian
 
             } else {
-                this.body.angle = this._direction * 3.14 / 180; // to radian
+                this.collider.angle = this._direction * 3.14 / 180; // to radian
             }
-
         }
     }
 
@@ -841,27 +866,45 @@ class Sprite {
         return this._direction;
     }
 
-    get width(): number|null {
-        if (this.costume) {
-            return this.costume.width * this.size / 100;
-        }
+    set colliderNone (colliderNone: boolean) {
+        this._colliderNone = colliderNone;
 
-        return null;
+        this.removeCollider();
     }
 
-    get height(): number|null {
-        if (this.costume) {
-            return this.costume.height * this.size / 100;
-        }
+    get colliderNone(): boolean {
+        return this._colliderNone;
+    }
 
-        return null;
+    get angleRadians(): number {
+        return this._direction * Math.PI / 180;
+    }
+
+    get sourceWidth(): number {
+        return this._width * this.size / 100;
+    }
+
+    get sourceHeight(): number {
+        return this._height * this.size / 100;
+    }
+
+    get width(): number {
+        const angleRadians = this.angleRadians;
+
+        return Math.abs(this.sourceWidth * Math.cos(angleRadians)) + Math.abs(this.sourceHeight * Math.sin(angleRadians));
+    }
+
+    get height(): number {
+        const angleRadians = this.angleRadians;
+
+        return Math.abs(this.sourceWidth * Math.sin(angleRadians)) + Math.abs(this.sourceHeight * Math.cos(angleRadians));
     }
 
     set x(value: number) {
         this._x = value;
 
-        if (this.body instanceof Polygon) {
-            this.body.x = value;
+        if (this.collider instanceof Collider) {
+            this.collider.x = value;
         }
     }
 
@@ -872,8 +915,8 @@ class Sprite {
     set y(value: number) {
         this._y = value;
 
-        if (this.body instanceof Polygon) {
-            this.body.y = value;
+        if (this.collider instanceof Collider) {
+            this.collider.y = value;
         }
     }
 
@@ -908,9 +951,12 @@ class Sprite {
     set size(value: number) {
         this._size = value;
 
-        if (this.body) {
-            this.body.scale_x = this._size / 100;
-            this.body.scale_y = this._size / 100;
+        if (this.collider instanceof PolygonCollider) {
+            this.collider.scale_x = this._size / 100;
+            this.collider.scale_y = this._size / 100;
+
+        } else if (this.collider instanceof CircleCollider) {
+            this.collider.scale = this._size / 100;
         }
     }
 
@@ -953,6 +999,10 @@ class Sprite {
         return this._layer;
     }
 
+    ready(): void {
+        this.tryDoOnReady();
+    }
+
     private addListeners() {
         this.eventEmitter.on(Game.SPRITE_COSTUME_READY_EVENT, Game.SPRITE_COSTUME_READY_EVENT, (event: CustomEvent) => {
             if (this.id == event.detail.spriteId) {
@@ -974,7 +1024,7 @@ class Sprite {
     }
 
     private tryDoOnReady() {
-        if (this.isReady() && this.onReadyPending) {
+        if (this.onReadyPending && this.isReady()) {
             this.onReadyPending = false;
 
             if (this.onReadyCallbacks.length) {
@@ -984,6 +1034,10 @@ class Sprite {
                 this.onReadyCallbacks = [];
             }
 
+            if (!this.collider && !this.colliderNone && this.costumes.length) {
+                this.createColliderFromCostume(this.costumes[0]);
+            }
+
             this.stage.eventEmitter.emit(Game.SPRITE_READY_EVENT, {
                 sprite: this,
                 stageId: this.stage.id
@@ -991,18 +1045,44 @@ class Sprite {
         }
     }
 
-    private removeBody() {
-        if (this.body instanceof Polygon) {
-            this.stage.collisionSystem.remove(this.body);
-            this.body = null;
-        }
+    private createColliderFromCostume(costume: Costume) {
+        this.setRectCollider(
+          costume.width + costume.colliderPaddingLeft + costume.colliderPaddingRight,
+          costume.height + costume.colliderPaddingTop + costume.colliderPaddingBottom
+        );
     }
 
-    private createBody(costume: Costume) {
-        this.body = costume.body;
-        this.body.scale_x = this.size / 100;
-        this.body.scale_y = this.size / 100;
+    private calculateCentroid(points: [number, number][]): { x: number; y: number } {
+        let xSum = 0;
+        let ySum = 0;
 
-        this.stage.collisionSystem.insert(this.body);
+        for (const point of points) {
+            xSum += point[0];
+            ySum += point[1];
+        }
+
+        const x = xSum / points.length;
+        const y = ySum / points.length;
+
+        return { x, y };
+    }
+
+    private calculatePolygonSize(points: [number, number][]): { width: number; height: number } {
+        let minX = points[0][0];
+        let minY = points[0][1];
+        let maxX = points[0][0];
+        let maxY = points[0][1];
+
+        for (const vertex of points) {
+            if (vertex[0] < minX) minX = vertex[0];
+            if (vertex[0] > maxX) maxX = vertex[0];
+            if (vertex[1] < minY) minY = vertex[1];
+            if (vertex[1] > maxY) maxY = vertex[1];
+        }
+
+        const width = maxX - minX;
+        const height = maxY - minY;
+
+        return { width, height };
     }
 }

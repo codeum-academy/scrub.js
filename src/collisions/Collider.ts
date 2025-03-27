@@ -3,7 +3,7 @@
  * @class
  * @protected
  */
-class Body {
+class Collider {
     /**
      * The X coordinate of the body
      */
@@ -46,7 +46,7 @@ class Body {
 
 	/**
 	 * Determines if the body is colliding with another body
-	 * @param {Circle|Polygon|Point} target The target body to test against
+	 * @param {CircleCollider|PolygonCollider|PointCollider} target The target body to test against
 	 * @param {CollisionResult} [result = null] A Result object on which to store information about the collision
 	 * @param {Boolean} [aabb = true] Set to false to skip the AABB test (useful if you use your own potential collision heuristic)
 	 * @returns {Boolean}
@@ -57,7 +57,7 @@ class Body {
 
 	/**
 	 * Returns a list of potential collisions
-	 * @returns {Array<Body>}
+	 * @returns {Array<Collider>}
 	 */
 	potentials() {
 		const bvh = this._bvh;

@@ -4,6 +4,9 @@ class Costume {
     height: number;
     x: number = 0;
     y: number = 0;
-    body: Polygon;
     ready = false;
+    colliderPaddingTop = 0;
+    colliderPaddingRight = 0;
+    colliderPaddingBottom = 0;
+    colliderPaddingLeft = 0;
 }

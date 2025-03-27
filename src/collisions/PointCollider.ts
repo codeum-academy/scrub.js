@@ -1,10 +1,10 @@
-/// <reference path="Polygon.ts"/>
+/// <reference path="PolygonCollider.ts"/>
 
 /**
  * A point used to detect collisions
  * @class
  */
-class Point extends Polygon {
+class PointCollider extends PolygonCollider {
 	/**
 	 * @constructor
 	 * @param {Number} [x = 0] The starting X coordinate
@@ -19,4 +19,4 @@ class Point extends Polygon {
 	}
 }
 
-Point.prototype.setPoints = undefined;
+PointCollider.prototype.setPoints = undefined;

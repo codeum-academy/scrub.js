@@ -1,4 +1,36 @@
+type DrawingCallbackFunction = (context: CanvasRenderingContext2D, object: Stage|Sprite) => void;
+type ScheduledCallbackFunction = (context: Stage|Sprite, state: ScheduledState) => boolean | void;
 type Locale = 'ru' | 'en';
+
+type GridCostumeOptions = {
+    cols: number,
+    rows: number,
+    limit?: number,
+    offset?: number,
+    name?: string,
+    imageX?: number,
+    imageY?: number,
+    imageWidth?: number,
+    imageHeight?: number,
+    colliderPadding?: number,
+    colliderPaddingTop?: number,
+    colliderPaddingRight?: number,
+    colliderPaddingBottom?: number,
+    colliderPaddingLeft?: number
+};
+
+type CostumeOptions = {
+    name?: string,
+    imageX?: number,
+    imageY?: number,
+    imageWidth?: number,
+    imageHeight?: number,
+    colliderPadding?: number,
+    colliderPaddingTop?: number,
+    colliderPaddingRight?: number,
+    colliderPaddingBottom?: number,
+    colliderPaddingLeft?: number
+};
 
 class Game {
     id: Symbol;
@@ -10,7 +42,7 @@ class Game {
     mouse: Mouse;
 
     debugMode = 'none'; // none, hover, forever;
-    debugBody = false;
+    debugCollider = false;
     debugColor = 'red';
 
     static readonly STAGE_READY_EVENT = 'scrubjs.stage.ready';
@@ -187,7 +219,7 @@ class Game {
         return isMouseDown;
     }
 
-    getMousePoint(): Point {
+    getMousePoint(): PointCollider {
         return this.mouse.getPoint();
     }
 

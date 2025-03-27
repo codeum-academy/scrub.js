@@ -1,6 +1,3 @@
-type DrawingCallbackFunction = (context: CanvasRenderingContext2D) => void;
-type ScheduledCallbackFunction = (context: Stage|Sprite, state: ScheduledState) => boolean | void;
-
 class Stage {
     id: Symbol;
     eventEmitter: EventEmitter;
@@ -161,24 +158,24 @@ class Stage {
         const background = this.backgrounds[backgroundIndex];
 
         if (background) {
-            this.background = background;
+            this    .background = background;
         }
     }
 
     drawSprite(sprite: Sprite): void {
         const costume = sprite.getCostume();
         const image = costume.image;
-        const dstX = sprite.x - sprite.width / 2;
-        const dstY = sprite.y - sprite.height / 2;
-        const dstWidth = sprite.width;
-        const dstHeight = sprite.height;
+        const dstX = sprite.x - sprite.sourceWidth / 2;
+        const dstY = sprite.y - sprite.sourceHeight / 2;
+        const dstWidth = sprite.sourceWidth;
+        const dstHeight = sprite.sourceHeight;
         const direction = sprite.direction;
         const rotateStyle = sprite.rotateStyle;
 
         if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
             this.context.translate(dstX + dstWidth / 2, dstY + dstHeight / 2);
-            this.context.rotate(direction * Math.PI / 180);
+            this.context.rotate(sprite.angleRadians);
             this.context.translate(-dstX - dstWidth / 2, -dstY - dstHeight / 2);
         }
 
@@ -194,10 +191,10 @@ class Stage {
                 costume.y,
                 costume.width,
                 costume.height,
-                -dstWidth / 2,
-                dstY,
-                dstWidth,
-                dstHeight
+                (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100),
+                dstY + (costume.colliderPaddingTop * sprite.size / 100),
+                costume.width * sprite.size / 100,
+                costume.height * sprite.size / 100
             );
 
         } else {
@@ -208,10 +205,10 @@ class Stage {
                 costume.y,
                 costume.width,
                 costume.height,
-                dstX,
-                dstY,
-                dstWidth,
-                dstHeight
+                dstX + (costume.colliderPaddingLeft * sprite.size / 100),
+                dstY + (costume.colliderPaddingTop * sprite.size / 100),
+                costume.width * sprite.size / 100,
+                costume.height * sprite.size / 100
             );
         }
 
@@ -258,7 +255,7 @@ class Stage {
                 const layerDrawings = this.drawings.get(layer);
 
                 for (const drawing of layerDrawings) {
-                    drawing(this.context);
+                    drawing(this.context, this);
                 }
             }
 
@@ -312,11 +309,15 @@ class Stage {
                     if (sprite.getCostume()) {
                         this.drawSprite(sprite);
                     }
+
+                    for (const drawing of sprite.drawings) {
+                        drawing(this.context, sprite);
+                    }
                 }
             }
         }
 
-        if (this.game.debugBody) {
+        if (this.game.debugCollider) {
             this.context.strokeStyle = this.game.debugColor;
             this.context.beginPath();
             this.collisionSystem.draw(this.context);
@@ -368,6 +369,12 @@ class Stage {
     ready(): void {
         this.tryDoOnReady();
         this.tryDoRun();
+
+        for(const layerSprites of this.sprites.values()) {
+            for (const sprite of layerSprites) {
+                sprite.ready();
+            }
+        }
     }
 
     onStart(onStartCallback) {
@@ -418,7 +425,7 @@ class Stage {
     }
 
     private tryDoOnReady() {
-        if (this.isReady() && this.onReadyPending) {
+        if (this.onReadyPending && this.isReady()) {
             this.onReadyPending = false;
 
             if (this.onReadyCallbacks.length) {

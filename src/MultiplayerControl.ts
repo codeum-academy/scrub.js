@@ -95,7 +95,7 @@ class MultiplayerControl {
                             game.syncObjects(syncData, this.game.calcDeltaTime(parameters.SendTime));
                         }
 
-                        const mousePoint = new Point(mouseX, mouseY);
+                        const mousePoint = new PointCollider(mouseX, mouseY);
                         callback(mousePoint, player, block);
 
                     } else {

@@ -2,7 +2,7 @@ class Mouse {
     x = 0;
     y = 0;
     private isDown = false;
-    private point: Point;
+    private point: PointCollider;
     private lastStage: Stage;
 
     constructor(game: Game) {
@@ -20,7 +20,7 @@ class Mouse {
             this.y = game.correctMouseY(e.clientY);
         });
 
-        this.point = new Point(this.x, this.y);
+        this.point = new PointCollider(this.x, this.y);
     }
 
     getPoint() {

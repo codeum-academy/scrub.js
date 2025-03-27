@@ -1,8 +1,10 @@
+/// <reference path="Collider.ts"/>
+
 /**
  * A circle used to detect collisions
  * @class
  */
-class Circle extends Body {
+class CircleCollider extends Collider {
     radius: number;
     scale: number;
 

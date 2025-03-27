@@ -1,10 +1,10 @@
-/// <reference path="Body.ts"/>
+/// <reference path="Collider.ts"/>
 
 /**
  * A polygon used to detect collisions
  * @class
  */
-class Polygon extends Body {
+class PolygonCollider extends Collider {
     /**
      * The angle of the body in radians
      */
@@ -60,7 +60,7 @@ class Polygon extends Body {
         this._scale_x = scale_x;
         this._scale_y = scale_y;
 
-		Polygon.prototype.setPoints.call(this, points);
+		PolygonCollider.prototype.setPoints.call(this, points);
 	}
 
 	/**
