@@ -1760,8 +1760,10 @@ var Sprite = (function () {
             return this._xCenterOffset;
         },
         set: function (value) {
+            var prevX = this.x;
             this._xCenterOffset = value;
             this.calculateCenterParams();
+            this.x = prevX;
         },
         enumerable: false,
         configurable: true
@@ -1771,8 +1773,10 @@ var Sprite = (function () {
             return this._yCenterOffset;
         },
         set: function (value) {
+            var prevY = this.y;
             this._yCenterOffset = value;
             this.calculateCenterParams();
+            this.y = prevY;
         },
         enumerable: false,
         configurable: true

@@ -1022,8 +1022,10 @@ class Sprite {
     }
 
     set xCenterOffset(value:number) {
+        const prevX = this.x;
         this._xCenterOffset = value;
         this.calculateCenterParams()
+        this.x = prevX;
     }
 
     get xCenterOffset() {
@@ -1031,8 +1033,10 @@ class Sprite {
     }
 
     set yCenterOffset(value:number) {
+        const prevY = this.y;
         this._yCenterOffset = value;
         this.calculateCenterParams()
+        this.y = prevY;
     }
 
     get yCenterOffset() {
