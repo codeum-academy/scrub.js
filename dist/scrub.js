@@ -817,6 +817,8 @@ var Sprite = (function () {
         this.phraseLiveTime = null;
         this._x = 0;
         this._y = 0;
+        this._xCenterOffset = 0;
+        this._yCenterOffset = 0;
         this._width = 0;
         this._height = 0;
         this._colliderNone = false;
@@ -832,6 +834,8 @@ var Sprite = (function () {
         this.scheduledCallbacks = [];
         this._drawings = [];
         this.pendingCostumeGrids = 0;
+        this._centerDistance = 0;
+        this._centerAngle = 0;
         if (!Registry.getInstance().has('game')) {
             throw new Error('You need create Game instance before Stage instance.');
         }
@@ -1390,8 +1394,11 @@ var Sprite = (function () {
         var clone = new Sprite(stage, this.layer);
         clone.name = this.name;
         clone.rotateStyle = this.rotateStyle;
-        clone.x = this.x;
-        clone.y = this.y;
+        clone.collider = null;
+        clone.x = this.centerX;
+        clone.y = this.centerY;
+        clone.xCenterOffset = this._xCenterOffset;
+        clone.yCenterOffset = this._yCenterOffset;
         clone.direction = this.direction;
         clone.size = this.size;
         clone.hidden = this.hidden;
@@ -1501,7 +1508,7 @@ var Sprite = (function () {
         if (this.rotateStyle != 'leftRight') {
             angle = this.direction * 3.14 / 180;
         }
-        this.collider = new PolygonCollider(this.x, this.y, [
+        this.collider = new PolygonCollider(this.centerX, this.centerY, [
             [(width / 2) * -1, (height / 2) * -1],
             [width / 2, (height / 2) * -1],
             [width / 2, height / 2],
@@ -1563,6 +1570,7 @@ var Sprite = (function () {
                 else {
                     this.collider.angle = this._direction * 3.14 / 180;
                 }
+                this.calculateColliderPos();
             }
         },
         enumerable: false,
@@ -1618,12 +1626,12 @@ var Sprite = (function () {
     });
     Object.defineProperty(Sprite.prototype, "x", {
         get: function () {
-            return this._x;
+            return this._x + this._xCenterOffset;
         },
         set: function (value) {
-            this._x = value;
+            this._x = value - this._xCenterOffset;
             if (this.collider instanceof Collider) {
-                this.collider.x = value;
+                this.calculateColliderPos();
             }
         },
         enumerable: false,
@@ -1631,13 +1639,27 @@ var Sprite = (function () {
     });
     Object.defineProperty(Sprite.prototype, "y", {
         get: function () {
-            return this._y;
+            return this._y + this._yCenterOffset;
         },
         set: function (value) {
-            this._y = value;
+            this._y = value - this._yCenterOffset;
             if (this.collider instanceof Collider) {
-                this.collider.y = value;
+                this.calculateColliderPos();
             }
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "centerX", {
+        get: function () {
+            return this._x;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "centerY", {
+        get: function () {
+            return this._y;
         },
         enumerable: false,
         configurable: true
@@ -1658,28 +1680,28 @@ var Sprite = (function () {
     });
     Object.defineProperty(Sprite.prototype, "rightX", {
         get: function () {
-            return this.x + this.width / 2;
+            return this._x + this.width / 2;
         },
         enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "leftX", {
         get: function () {
-            return this.x - this.width / 2;
+            return this._x - this.width / 2;
         },
         enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "topY", {
         get: function () {
-            return this.y - this.height / 2;
+            return this._y - this.height / 2;
         },
         enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "bottomY", {
         get: function () {
-            return this.y + this.height / 2;
+            return this._y + this.height / 2;
         },
         enumerable: false,
         configurable: true
@@ -1721,6 +1743,28 @@ var Sprite = (function () {
     Object.defineProperty(Sprite.prototype, "stopped", {
         get: function () {
             return this._stopped;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "xCenterOffset", {
+        get: function () {
+            return this._xCenterOffset;
+        },
+        set: function (value) {
+            this._xCenterOffset = value;
+            this.calculateCenterParams();
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "yCenterOffset", {
+        get: function () {
+            return this._yCenterOffset;
+        },
+        set: function (value) {
+            this._yCenterOffset = value;
+            this.calculateCenterParams();
         },
         enumerable: false,
         configurable: true
@@ -1840,6 +1884,14 @@ var Sprite = (function () {
         var width = maxX - minX;
         var height = maxY - minY;
         return { width: width, height: height };
+    };
+    Sprite.prototype.calculateCenterParams = function () {
+        this._centerDistance = Math.hypot(this._xCenterOffset, this._yCenterOffset);
+        this._centerAngle = -Math.atan2(-this._yCenterOffset, -this._xCenterOffset);
+    };
+    Sprite.prototype.calculateColliderPos = function () {
+        this.collider.x = this.x + Math.cos(this._centerAngle - this.angleRadians) * this._centerDistance;
+        this.collider.y = this.y - Math.sin(this._centerAngle - this.angleRadians) * this._centerDistance;
     };
     return Sprite;
 }());
@@ -2765,17 +2817,19 @@ var Stage = (function () {
     Stage.prototype.drawSprite = function (sprite) {
         var costume = sprite.getCostume();
         var image = costume.image;
-        var dstX = sprite.x - sprite.sourceWidth / 2;
-        var dstY = sprite.y - sprite.sourceHeight / 2;
+        var dstX = sprite.centerX - sprite.sourceWidth / 2;
+        var dstY = sprite.centerY - sprite.sourceHeight / 2;
         var dstWidth = sprite.sourceWidth;
         var dstHeight = sprite.sourceHeight;
         var direction = sprite.direction;
         var rotateStyle = sprite.rotateStyle;
+        var xOffset = sprite.xCenterOffset;
+        var yOffset = sprite.yCenterOffset;
         if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
-            this.context.translate(dstX + dstWidth / 2, dstY + dstHeight / 2);
+            this.context.translate(dstX + dstWidth / 2 + xOffset, dstY + dstHeight / 2 + yOffset);
             this.context.rotate(sprite.angleRadians);
-            this.context.translate(-dstX - dstWidth / 2, -dstY - dstHeight / 2);
+            this.context.translate(-dstX - dstWidth / 2 - xOffset, -dstY - dstHeight / 2 - yOffset);
         }
         if (rotateStyle === 'leftRight' && direction > 180) {
             this.context.save();
@@ -2860,6 +2914,16 @@ var Stage = (function () {
                                 _this.context.fillText("direction: " + sprite.direction, x, y);
                                 y += 20;
                                 _this.context.fillText("costume: " + sprite.getCostumeIndex(), x, y);
+                                y += 20;
+                                _this.context.fillText("xOffset: " + sprite.xCenterOffset, x, y);
+                                y += 20;
+                                _this.context.fillText("yOffset: " + sprite.yCenterOffset, x, y);
+                                _this.context.beginPath();
+                                _this.context.moveTo(sprite.x - 2, sprite.y);
+                                _this.context.lineTo(sprite.x + 2, sprite.y);
+                                _this.context.moveTo(sprite.x, sprite.y - 2);
+                                _this.context.lineTo(sprite.x, sprite.y + 2);
+                                _this.context.stroke();
                             };
                             if (this_1.game.debugMode === 'hover') {
                                 if (sprite.touchMouse()) {

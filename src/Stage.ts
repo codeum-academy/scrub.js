@@ -165,18 +165,20 @@ class Stage {
     drawSprite(sprite: Sprite): void {
         const costume = sprite.getCostume();
         const image = costume.image;
-        const dstX = sprite.x - sprite.sourceWidth / 2;
-        const dstY = sprite.y - sprite.sourceHeight / 2;
+        const dstX = sprite.centerX - sprite.sourceWidth / 2;
+        const dstY = sprite.centerY - sprite.sourceHeight / 2;
         const dstWidth = sprite.sourceWidth;
         const dstHeight = sprite.sourceHeight;
         const direction = sprite.direction;
         const rotateStyle = sprite.rotateStyle;
+        const xOffset = sprite.xCenterOffset;
+        const yOffset = sprite.yCenterOffset;
 
         if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
-            this.context.translate(dstX + dstWidth / 2, dstY + dstHeight / 2);
+            this.context.translate(dstX + dstWidth / 2 + xOffset, dstY + dstHeight / 2 + yOffset);
             this.context.rotate(sprite.angleRadians);
-            this.context.translate(-dstX - dstWidth / 2, -dstY - dstHeight / 2);
+            this.context.translate(-dstX - dstWidth / 2 - xOffset, -dstY - dstHeight / 2 - yOffset);
         }
 
         if (rotateStyle === 'leftRight' && direction > 180) {
@@ -269,6 +271,7 @@ class Stage {
 
                     if (this.game.debugMode !== 'none') {
                         const fn = () => {
+
                             const x = sprite.x - (this.context.measureText(sprite.name).width / 2);
                             let y = sprite.realY + sprite.height + 20;
 
@@ -286,6 +289,17 @@ class Stage {
                             this.context.fillText("direction: " + sprite.direction, x, y);
                             y += 20;
                             this.context.fillText("costume: " + sprite.getCostumeIndex(), x, y);
+                            y += 20;
+                            this.context.fillText("xOffset: " + sprite.xCenterOffset, x, y);
+                            y += 20;
+                            this.context.fillText("yOffset: " + sprite.yCenterOffset, x, y);
+                            // this.context.font = '40px Arial';
+                            this.context.beginPath();
+                            this.context.moveTo(sprite.x - 2, sprite.y);
+                            this.context.lineTo(sprite.x + 2, sprite.y);
+                            this.context.moveTo(sprite.x, sprite.y - 2);
+                            this.context.lineTo(sprite.x, sprite.y + 2);
+                            this.context.stroke()
                         };
 
                         if (this.game.debugMode === 'hover') {
