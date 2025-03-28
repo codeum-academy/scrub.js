@@ -795,7 +795,7 @@ class Sprite {
             angle = this.direction * 3.14 / 180; // to radian
         }
 
-        this.collider = new PolygonCollider(this.centerX, this.centerY, [
+        this.collider = new PolygonCollider(this.x, this.y, [
             [(width / 2) * -1, (height / 2) * -1],
             [width / 2, (height / 2) * -1],
             [width / 2, height / 2],
@@ -805,7 +805,7 @@ class Sprite {
         this._height = height;
 
         this.stage.collisionSystem.insert(this.collider);
-        // this.calculateColliderPos()
+        this.calculateColliderPos()
     }
 
     setPolygonCollider(points: [number, number][] = []) {
@@ -828,7 +828,7 @@ class Sprite {
         this._height = height;
 
         this.stage.collisionSystem.insert(this.collider);
-        // this.calculateColliderPos()
+        this.calculateColliderPos()
     }
 
     setCircleCollider(radius: number) {
@@ -837,7 +837,7 @@ class Sprite {
         this._height = radius * 2;
 
         this.stage.collisionSystem.insert(this.collider);
-        // this.calculateColliderPos()
+        this.calculateColliderPos()
     }
 
     getCostume(): Costume {
@@ -872,9 +872,12 @@ class Sprite {
             } else {
                 this.collider.angle = this._direction * 3.14 / 180; // to radian
             }
-            this.calculateColliderPos();
+
         }
 
+        if (this.collider) {
+            this.calculateColliderPos();
+        }
 
     }
 
@@ -1092,6 +1095,7 @@ class Sprite {
           costume.width + costume.colliderPaddingLeft + costume.colliderPaddingRight,
           costume.height + costume.colliderPaddingTop + costume.colliderPaddingBottom
         );
+        this.calculateColliderPos();
     }
 
     private calculateCentroid(points: [number, number][]): { x: number; y: number } {

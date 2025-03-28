@@ -1508,7 +1508,7 @@ var Sprite = (function () {
         if (this.rotateStyle != 'leftRight') {
             angle = this.direction * 3.14 / 180;
         }
-        this.collider = new PolygonCollider(this.centerX, this.centerY, [
+        this.collider = new PolygonCollider(this.x, this.y, [
             [(width / 2) * -1, (height / 2) * -1],
             [width / 2, (height / 2) * -1],
             [width / 2, height / 2],
@@ -1517,6 +1517,7 @@ var Sprite = (function () {
         this._width = width;
         this._height = height;
         this.stage.collisionSystem.insert(this.collider);
+        this.calculateColliderPos();
     };
     Sprite.prototype.setPolygonCollider = function (points) {
         if (points === void 0) { points = []; }
@@ -1534,12 +1535,14 @@ var Sprite = (function () {
         this._width = width;
         this._height = height;
         this.stage.collisionSystem.insert(this.collider);
+        this.calculateColliderPos();
     };
     Sprite.prototype.setCircleCollider = function (radius) {
         this.collider = new CircleCollider(this.x, this.y, radius, this.size / 100);
         this._width = radius * 2;
         this._height = radius * 2;
         this.stage.collisionSystem.insert(this.collider);
+        this.calculateColliderPos();
     };
     Sprite.prototype.getCostume = function () {
         return this.costume;
@@ -1570,6 +1573,8 @@ var Sprite = (function () {
                 else {
                     this.collider.angle = this._direction * 3.14 / 180;
                 }
+            }
+            if (this.collider) {
                 this.calculateColliderPos();
             }
         },
@@ -1832,6 +1837,7 @@ var Sprite = (function () {
     };
     Sprite.prototype.createColliderFromCostume = function (costume) {
         this.setRectCollider(costume.width + costume.colliderPaddingLeft + costume.colliderPaddingRight, costume.height + costume.colliderPaddingTop + costume.colliderPaddingBottom);
+        this.calculateColliderPos();
     };
     Sprite.prototype.calculateCentroid = function (points) {
         var e_14, _a;
