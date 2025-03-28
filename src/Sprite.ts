@@ -1146,7 +1146,14 @@ class Sprite {
     }
 
     private calculateColliderPos() {
-        this.collider.x = this.x + Math.cos(this._centerAngle - this.angleRadians) * this._centerDistance;
-        this.collider.y = this.y - Math.sin(this._centerAngle - this.angleRadians) * this._centerDistance;
+        if (this.rotateStyle === 'leftRight') {
+            const leftRightMultiplier = this._direction > 180 ? -1 : 1;
+            this.collider.x = this.x - this._xCenterOffset * leftRightMultiplier;
+            this.collider.y = this.y - this._yCenterOffset;
+        }
+        else {
+            this.collider.x = this.x + Math.cos(this._centerAngle - this.angleRadians) * this._centerDistance;
+            this.collider.y = this.y - Math.sin(this._centerAngle - this.angleRadians) * this._centerDistance;
+        }
     }
 }

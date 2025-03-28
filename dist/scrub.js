@@ -1903,8 +1903,15 @@ var Sprite = (function () {
         this._centerAngle = -Math.atan2(-this._yCenterOffset, -this._xCenterOffset);
     };
     Sprite.prototype.calculateColliderPos = function () {
-        this.collider.x = this.x + Math.cos(this._centerAngle - this.angleRadians) * this._centerDistance;
-        this.collider.y = this.y - Math.sin(this._centerAngle - this.angleRadians) * this._centerDistance;
+        if (this.rotateStyle === 'leftRight') {
+            var leftRightMultiplier = this._direction > 180 ? -1 : 1;
+            this.collider.x = this.x - this._xCenterOffset * leftRightMultiplier;
+            this.collider.y = this.y - this._yCenterOffset;
+        }
+        else {
+            this.collider.x = this.x + Math.cos(this._centerAngle - this.angleRadians) * this._centerDistance;
+            this.collider.y = this.y - Math.sin(this._centerAngle - this.angleRadians) * this._centerDistance;
+        }
     };
     return Sprite;
 }());
@@ -2854,9 +2861,9 @@ var Stage = (function () {
         }
         if (rotateStyle === 'leftRight' && direction > 180) {
             this.context.save();
-            this.context.translate(dstX + dstWidth / 2, 0);
+            this.context.translate(dstX + dstWidth / 2 + xOffset, yOffset);
             this.context.scale(-1, 1);
-            this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100), dstY + (costume.colliderPaddingTop * sprite.size / 100), costume.width * sprite.size / 100, costume.height * sprite.size / 100);
+            this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100) - xOffset + radiusOffsetX, dstY + (costume.colliderPaddingTop * sprite.size / 100) - yOffset + radiusOffsetY, costume.width * sprite.size / 100, costume.height * sprite.size / 100);
         }
         else {
             this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, dstX + (costume.colliderPaddingLeft * sprite.size / 100) + radiusOffsetX, dstY + (costume.colliderPaddingTop * sprite.size / 100) + radiusOffsetY, costume.width * sprite.size / 100, costume.height * sprite.size / 100);

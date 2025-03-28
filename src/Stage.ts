@@ -193,7 +193,7 @@ class Stage {
 
         if (rotateStyle === 'leftRight' && direction > 180) {
             this.context.save();
-            this.context.translate(dstX + dstWidth / 2, 0);
+            this.context.translate(dstX + dstWidth / 2 + xOffset, yOffset);
             this.context.scale(-1, 1);
 
             // mirror image
@@ -203,8 +203,8 @@ class Stage {
                 costume.y,
                 costume.width,
                 costume.height,
-                (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100),
-                dstY + (costume.colliderPaddingTop * sprite.size / 100),
+                (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100) - xOffset + radiusOffsetX,
+                dstY + (costume.colliderPaddingTop * sprite.size / 100) - yOffset + radiusOffsetY,
                 costume.width * sprite.size / 100,
                 costume.height * sprite.size / 100
             );
