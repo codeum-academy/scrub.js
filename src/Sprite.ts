@@ -696,6 +696,10 @@ class Sprite {
             clone.cloneSound(sound, this.soundNames[soundIndex]);
         }
 
+        if (this.collider instanceof CircleCollider) {
+            clone.setCircleCollider(this.collider.radius);
+        }
+
         clone.ready();
 
         return clone;

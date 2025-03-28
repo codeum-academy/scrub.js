@@ -1431,6 +1431,9 @@ var Sprite = (function () {
             }
             finally { if (e_12) throw e_12.error; }
         }
+        if (this.collider instanceof CircleCollider) {
+            clone.setCircleCollider(this.collider.radius);
+        }
         clone.ready();
         return clone;
     };
@@ -2831,6 +2834,14 @@ var Stage = (function () {
         var rotateStyle = sprite.rotateStyle;
         var xOffset = sprite.xCenterOffset;
         var yOffset = sprite.yCenterOffset;
+        var radius = 0;
+        var radiusOffsetX = 0;
+        var radiusOffsetY = 0;
+        if (sprite.getCollider() instanceof CircleCollider) {
+            radius = sprite.getCollider().radius;
+            radiusOffsetX = radius - costume.width / 2;
+            radiusOffsetY = radius - costume.height / 2;
+        }
         if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
             this.context.translate(dstX + dstWidth / 2 + xOffset, dstY + dstHeight / 2 + yOffset);
@@ -2844,7 +2855,7 @@ var Stage = (function () {
             this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100), dstY + (costume.colliderPaddingTop * sprite.size / 100), costume.width * sprite.size / 100, costume.height * sprite.size / 100);
         }
         else {
-            this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, dstX + (costume.colliderPaddingLeft * sprite.size / 100), dstY + (costume.colliderPaddingTop * sprite.size / 100), costume.width * sprite.size / 100, costume.height * sprite.size / 100);
+            this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, dstX + (costume.colliderPaddingLeft * sprite.size / 100) + radiusOffsetX, dstY + (costume.colliderPaddingTop * sprite.size / 100) + radiusOffsetY, costume.width * sprite.size / 100, costume.height * sprite.size / 100);
         }
         if (rotateStyle === 'normal' && direction !== 0 || rotateStyle === 'leftRight' && direction > 180) {
             this.context.restore();

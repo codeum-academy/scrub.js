@@ -173,6 +173,16 @@ class Stage {
         const rotateStyle = sprite.rotateStyle;
         const xOffset = sprite.xCenterOffset;
         const yOffset = sprite.yCenterOffset;
+        let radius = 0
+        let radiusOffsetX = 0;
+        let radiusOffsetY = 0;
+
+        if (sprite.getCollider() instanceof CircleCollider) {
+            radius = sprite.getCollider().radius;
+            radiusOffsetX = radius - costume.width / 2;
+            radiusOffsetY = radius - costume.height / 2;
+        }
+
 
         if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
@@ -207,8 +217,8 @@ class Stage {
                 costume.y,
                 costume.width,
                 costume.height,
-                dstX + (costume.colliderPaddingLeft * sprite.size / 100),
-                dstY + (costume.colliderPaddingTop * sprite.size / 100),
+                dstX + (costume.colliderPaddingLeft * sprite.size / 100) + radiusOffsetX,
+                dstY + (costume.colliderPaddingTop * sprite.size / 100) + radiusOffsetY,
                 costume.width * sprite.size / 100,
                 costume.height * sprite.size / 100
             );
