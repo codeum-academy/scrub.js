@@ -39,6 +39,7 @@ class Sprite {
     private pendingCostumeGrids = 0;
     private _centerDistance = 0;
     private _centerAngle = 0;
+    private _tags = [];
 
     constructor(stage: Stage = null, layer = 1, costumePaths = [], soundPaths = []) {
         if (!Registry.getInstance().has('game')) {
@@ -683,6 +684,7 @@ class Sprite {
         clone.hidden = this.hidden;
         clone._deleted = this.deleted;
         clone._stopped = this.stopped;
+        clone._tags = this.tags;
 
         for (const costume of this.costumes) {
             clone.cloneCostume(costume, this.getCostumeName());
@@ -802,6 +804,8 @@ class Sprite {
         ], angle, this.size / 100, this.size / 100);
         this._width = width;
         this._height = height;
+        this.collider.tags = this.tags;
+        this.collider.parentSprite = this;
 
         this.stage.collisionSystem.insert(this.collider);
         this.updateColliderPosition()
@@ -825,6 +829,8 @@ class Sprite {
         const { width, height } = this.calculatePolygonSize(centeredPoints);
         this._width = width;
         this._height = height;
+        this.collider.tags = this.tags;
+        this.collider.parentSprite = this;
 
         this.stage.collisionSystem.insert(this.collider);
         this.updateColliderPosition()
@@ -834,6 +840,8 @@ class Sprite {
         this.collider = new CircleCollider(this.x, this.y, radius, this.size / 100);
         this._width = radius * 2;
         this._height = radius * 2;
+        this.collider.tags = this.tags;
+        this.collider.parentSprite = this;
 
         this.stage.collisionSystem.insert(this.collider);
         this.updateColliderPosition()
@@ -849,6 +857,65 @@ class Sprite {
 
     getCostumeIndex(): string {
         return this.costumeIndex;
+    }
+
+    touchTag(nameOfTag) {
+        if (this.hidden || this.stopped || this.deleted || !this.collider) {
+            return false;
+        }
+
+        const potentialsColliders = this.collider.potentials();
+        if (!potentialsColliders.length) {
+            return false;
+        }
+
+        for (const potentialCollider of potentialsColliders) {
+            if (potentialCollider.hasTag(nameOfTag)) {
+                const potentialSprite = potentialCollider.parentSprite;
+                if (
+                    !potentialSprite.hidden &&
+                    !potentialSprite.stopped &&
+                    !potentialSprite.deleted &&
+                    potentialSprite.getCollider() &&
+                    this.collider.collides(potentialCollider, this.collisionResult)
+                ) {
+                    return potentialSprite;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    hasTag(nameOfTag) {
+        if (!this._tags.length) {
+            return false;
+        }
+        for (const tag of this._tags) {
+            if (tag === nameOfTag) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    addTag(nameOfTag) {
+        if (!this.hasTag(nameOfTag)) {
+            this._tags.push(nameOfTag);
+            if (this.collider){
+                this.collider.addTag(nameOfTag);
+            }
+        }
+    }
+
+    removeTag(nameOfTag) {
+        const foundIndex = this.findTagIndex(nameOfTag);
+        if (foundIndex > -1) {
+            this._tags.splice(foundIndex, 1);
+            if (this.collider){
+                this.collider.removeTag(nameOfTag);
+            }
+        }
     }
 
     set direction (direction: number) {
@@ -1054,6 +1121,10 @@ class Sprite {
         return this._layer;
     }
 
+    get tags(){
+        return this._tags;
+    }
+
     ready(): void {
         this.tryDoOnReady();
     }
@@ -1150,6 +1221,15 @@ class Sprite {
     private updateColliderPosition() {
             this.collider.x = this.sourceX;
             this.collider.y = this.sourceY;
+    }
+
+    private findTagIndex(nameOfTag) {
+        for (const tag of this._tags) {
+            if (tag === nameOfTag) {
+                return this._tags.indexOf(tag);
+            }
+        }
+        return -1;
     }
 
     cloneCollider(sprite) {

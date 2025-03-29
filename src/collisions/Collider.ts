@@ -30,6 +30,8 @@ class Collider {
     protected _bvh_min_y = 0;
     protected _bvh_max_x = 0;
     protected _bvh_max_y = 0;
+	protected _tags = [];
+	protected _parent_sprite = null;
 
 	/**
 	 * @constructor
@@ -80,6 +82,43 @@ class Collider {
 		}
 	}
 
+	set tags(value){
+		this._tags = value;
+	}
+
+	hasTag(nameOfTag){
+		if (!this._tags.length) {
+			return false;
+		}
+		for (const tag of this._tags) {
+			if (tag === nameOfTag) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	removeTag(nameOfTag){
+		const foundIndex = this.findTagIndex(nameOfTag);
+		if (foundIndex > -1) {
+			this._tags.splice(foundIndex, 1);
+		}
+	}
+
+	addTag(nameOfTag){
+		if (!this.hasTag(nameOfTag)) {
+			this._tags.push(nameOfTag);
+		}
+	}
+
+	set parentSprite(value) {
+		this._parent_sprite = value;
+	}
+
+	get parentSprite() {
+		return this._parent_sprite;
+	}
+
 	/**
 	 * Creates a {@link CollisionResult} used to collect the detailed results of a collision test
 	 */
@@ -92,5 +131,14 @@ class Collider {
 	 */
 	static createResult() {
 		return new CollisionResult();
+	}
+
+	private findTagIndex(nameOfTag) {
+		for (const tag of this._tags) {
+			if (tag === nameOfTag) {
+				return this._tags.indexOf(tag);
+			}
+		}
+		return -1;
 	}
 }
