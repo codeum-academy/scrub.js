@@ -179,8 +179,8 @@ class Stage {
 
         if (sprite.getCollider() instanceof CircleCollider) {
             radius = sprite.getCollider().radius;
-            radiusOffsetX = radius - costume.width / 2;
-            radiusOffsetY = radius - costume.height / 2;
+            radiusOffsetX = (radius - (costume.width / 2)) * sprite.size / 100;
+            radiusOffsetY = (radius - (costume.height / 2)) * sprite.size / 100;
         }
 
 
