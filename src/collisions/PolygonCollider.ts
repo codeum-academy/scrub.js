@@ -35,6 +35,7 @@ class PolygonCollider extends Collider {
     protected _normals = null;
     protected _dirty_coords = true;
     protected _dirty_normals = true;
+	protected _origin_points = null;
 
 	/**
 	 * @constructor
@@ -59,6 +60,7 @@ class PolygonCollider extends Collider {
         this._angle = angle;
         this._scale_x = scale_x;
         this._scale_y = scale_y;
+		this._origin_points = points;
 
 		PolygonCollider.prototype.setPoints.call(this, points);
 	}
@@ -216,5 +218,9 @@ class PolygonCollider extends Collider {
 		}
 
 		this._dirty_normals = false;
+	}
+
+	get points() {
+		return this._origin_points;
 	}
 }

@@ -165,8 +165,8 @@ class Stage {
     drawSprite(sprite: Sprite): void {
         const costume = sprite.getCostume();
         const image = costume.image;
-        const dstX = sprite.centerX - sprite.sourceWidth / 2;
-        const dstY = sprite.centerY - sprite.sourceHeight / 2;
+        const dstX = sprite.sourceX - sprite.sourceWidth / 2;
+        const dstY = sprite.sourceY - sprite.sourceHeight / 2;
         const dstWidth = sprite.sourceWidth;
         const dstHeight = sprite.sourceHeight;
         const direction = sprite.direction;
@@ -186,14 +186,14 @@ class Stage {
 
         if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
-            this.context.translate(dstX + dstWidth / 2 + xOffset, dstY + dstHeight / 2 + yOffset);
+            this.context.translate(dstX + dstWidth / 2, dstY + dstHeight / 2);
             this.context.rotate(sprite.angleRadians);
-            this.context.translate(-dstX - dstWidth / 2 - xOffset, -dstY - dstHeight / 2 - yOffset);
+            this.context.translate(-dstX - dstWidth / 2, -dstY - dstHeight / 2);
         }
 
         if (rotateStyle === 'leftRight' && direction > 180) {
             this.context.save();
-            this.context.translate(dstX + dstWidth / 2 + xOffset, yOffset);
+            this.context.translate(dstX + dstWidth / 2, 0);
             this.context.scale(-1, 1);
 
             // mirror image
@@ -203,8 +203,8 @@ class Stage {
                 costume.y,
                 costume.width,
                 costume.height,
-                (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100) - xOffset + radiusOffsetX,
-                dstY + (costume.colliderPaddingTop * sprite.size / 100) - yOffset + radiusOffsetY,
+                (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100) + radiusOffsetX,
+                dstY + (costume.colliderPaddingTop * sprite.size / 100) + radiusOffsetY,
                 costume.width * sprite.size / 100,
                 costume.height * sprite.size / 100
             );

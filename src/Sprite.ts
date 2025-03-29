@@ -674,18 +674,15 @@ class Sprite {
         clone.name = this.name;
         clone.rotateStyle = this.rotateStyle;
 
-        clone.collider = null;
-
-        clone.x = this.centerX;
-        clone.y = this.centerY;
-        clone.xCenterOffset = this._xCenterOffset;
-        clone.yCenterOffset = this._yCenterOffset;
+        clone.x = this.x;
+        clone.y = this.y;
+        clone.xCenterOffset = this.xCenterOffset;
+        clone.yCenterOffset = this.yCenterOffset;
         clone.direction = this.direction;
         clone.size = this.size;
         clone.hidden = this.hidden;
         clone._deleted = this.deleted;
         clone._stopped = this.stopped;
-
 
         for (const costume of this.costumes) {
             clone.cloneCostume(costume, this.getCostumeName());
@@ -696,9 +693,7 @@ class Sprite {
             clone.cloneSound(sound, this.soundNames[soundIndex]);
         }
 
-        if (this.collider instanceof CircleCollider) {
-            clone.setCircleCollider(this.collider.radius);
-        }
+        clone.cloneCollider(this)
 
         clone.ready();
 
@@ -809,7 +804,7 @@ class Sprite {
         this._height = height;
 
         this.stage.collisionSystem.insert(this.collider);
-        this.calculateColliderPos()
+        this.updateColliderPosition()
     }
 
     setPolygonCollider(points: [number, number][] = []) {
@@ -832,7 +827,7 @@ class Sprite {
         this._height = height;
 
         this.stage.collisionSystem.insert(this.collider);
-        this.calculateColliderPos()
+        this.updateColliderPosition()
     }
 
     setCircleCollider(radius: number) {
@@ -841,7 +836,7 @@ class Sprite {
         this._height = radius * 2;
 
         this.stage.collisionSystem.insert(this.collider);
-        this.calculateColliderPos()
+        this.updateColliderPosition()
     }
 
     getCostume(): Costume {
@@ -880,7 +875,7 @@ class Sprite {
         }
 
         if (this.collider) {
-            this.calculateColliderPos();
+            this.updateColliderPosition();
         }
 
     }
@@ -924,35 +919,42 @@ class Sprite {
     }
 
     set x(value: number) {
-        this._x = value - this._xCenterOffset;
+        this._x = value
 
         if (this.collider instanceof Collider) {
-            this.calculateColliderPos();
+            this.updateColliderPosition();
         }
     }
 
     get x(): number {
-        return this._x + this._xCenterOffset;
+        return this._x;
     }
 
     set y(value: number) {
-        this._y = value - this._yCenterOffset;
+        this._y = value;
 
         if (this.collider instanceof Collider) {
-            this.calculateColliderPos();
+            this.updateColliderPosition();
         }
     }
 
     get y(): number {
-        return this._y + this._yCenterOffset;
+        return this._y;
     }
 
-    get centerX() {
-        return this._x
+    get sourceX() {
+        if (this.rotateStyle === 'leftRight' || this.rotateStyle === 'none') {
+            const leftRightMultiplier = this._direction > 180 && this.rotateStyle === 'leftRight' ? -1 : 1;
+            return this._x - this._xCenterOffset * leftRightMultiplier;
+        }
+        return this._x + Math.cos(this._centerAngle - this.angleRadians) * this._centerDistance;
     }
 
-    get centerY() {
-        return this._y
+    get sourceY() {
+        if (this.rotateStyle === 'leftRight' || this.rotateStyle === 'none') {
+            return this._y - this._yCenterOffset;
+        }
+        return this._y - Math.sin(this._centerAngle - this.angleRadians) * this._centerDistance;
     }
 
     get realX(): number {
@@ -964,19 +966,19 @@ class Sprite {
     }
 
     get rightX(): number {
-        return this._x + this.width / 2;
+        return this.sourceX + this.width / 2;
     }
 
     get leftX(): number {
-        return this._x - this.width / 2;
+        return this.sourceX - this.width / 2;
     }
 
     get topY(): number {
-        return this._y - this.height / 2;
+        return this.sourceY - this.height / 2;
     }
 
     get bottomY(): number {
-        return this._y + this.height / 2;
+        return this.sourceY + this.height / 2;
     }
 
     set size(value: number) {
@@ -1103,7 +1105,7 @@ class Sprite {
           costume.width + costume.colliderPaddingLeft + costume.colliderPaddingRight,
           costume.height + costume.colliderPaddingTop + costume.colliderPaddingBottom
         );
-        this.calculateColliderPos();
+        this.updateColliderPosition();
     }
 
     private calculateCentroid(points: [number, number][]): { x: number; y: number } {
@@ -1145,15 +1147,19 @@ class Sprite {
         this._centerAngle = -Math.atan2(-this._yCenterOffset , -this._xCenterOffset);
     }
 
-    private calculateColliderPos() {
-        if (this.rotateStyle === 'leftRight') {
-            const leftRightMultiplier = this._direction > 180 ? -1 : 1;
-            this.collider.x = this.x - this._xCenterOffset * leftRightMultiplier;
-            this.collider.y = this.y - this._yCenterOffset;
-        }
-        else {
-            this.collider.x = this.x + Math.cos(this._centerAngle - this.angleRadians) * this._centerDistance;
-            this.collider.y = this.y - Math.sin(this._centerAngle - this.angleRadians) * this._centerDistance;
-        }
+    private updateColliderPosition() {
+            this.collider.x = this.sourceX;
+            this.collider.y = this.sourceY;
+    }
+
+    cloneCollider(sprite) {
+        // if (!sprite.getCollider() && !sprite.colliderNone) {
+            if (sprite.getCollider() instanceof CircleCollider) {
+                this.setCircleCollider(sprite.getCollider().radius);
+            }
+            else {
+                this.setPolygonCollider(sprite.getCollider().points);
+            }
+        // }
     }
 }
