@@ -817,6 +817,8 @@ var Sprite = (function () {
         this.phraseLiveTime = null;
         this._x = 0;
         this._y = 0;
+        this._xCenterOffset = 0;
+        this._yCenterOffset = 0;
         this._width = 0;
         this._height = 0;
         this._colliderNone = false;
@@ -832,6 +834,8 @@ var Sprite = (function () {
         this.scheduledCallbacks = [];
         this._drawings = [];
         this.pendingCostumeGrids = 0;
+        this._centerDistance = 0;
+        this._centerAngle = 0;
         if (!Registry.getInstance().has('game')) {
             throw new Error('You need create Game instance before Stage instance.');
         }
@@ -1392,6 +1396,8 @@ var Sprite = (function () {
         clone.rotateStyle = this.rotateStyle;
         clone.x = this.x;
         clone.y = this.y;
+        clone.xCenterOffset = this.xCenterOffset;
+        clone.yCenterOffset = this.yCenterOffset;
         clone.direction = this.direction;
         clone.size = this.size;
         clone.hidden = this.hidden;
@@ -1424,6 +1430,7 @@ var Sprite = (function () {
             }
             finally { if (e_12) throw e_12.error; }
         }
+        clone.cloneCollider(this);
         clone.ready();
         return clone;
     };
@@ -1510,6 +1517,7 @@ var Sprite = (function () {
         this._width = width;
         this._height = height;
         this.stage.collisionSystem.insert(this.collider);
+        this.updateColliderPosition();
     };
     Sprite.prototype.setPolygonCollider = function (points) {
         if (points === void 0) { points = []; }
@@ -1527,12 +1535,14 @@ var Sprite = (function () {
         this._width = width;
         this._height = height;
         this.stage.collisionSystem.insert(this.collider);
+        this.updateColliderPosition();
     };
     Sprite.prototype.setCircleCollider = function (radius) {
         this.collider = new CircleCollider(this.x, this.y, radius, this.size / 100);
         this._width = radius * 2;
         this._height = radius * 2;
         this.stage.collisionSystem.insert(this.collider);
+        this.updateColliderPosition();
     };
     Sprite.prototype.getCostume = function () {
         return this.costume;
@@ -1563,6 +1573,9 @@ var Sprite = (function () {
                 else {
                     this.collider.angle = this._direction * 3.14 / 180;
                 }
+            }
+            if (this.collider) {
+                this.updateColliderPosition();
             }
         },
         enumerable: false,
@@ -1623,7 +1636,7 @@ var Sprite = (function () {
         set: function (value) {
             this._x = value;
             if (this.collider instanceof Collider) {
-                this.collider.x = value;
+                this.updateColliderPosition();
             }
         },
         enumerable: false,
@@ -1636,8 +1649,29 @@ var Sprite = (function () {
         set: function (value) {
             this._y = value;
             if (this.collider instanceof Collider) {
-                this.collider.y = value;
+                this.updateColliderPosition();
             }
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "sourceX", {
+        get: function () {
+            if (this.rotateStyle === 'leftRight' || this.rotateStyle === 'none') {
+                var leftRightMultiplier = this._direction > 180 && this.rotateStyle === 'leftRight' ? -1 : 1;
+                return this._x - this._xCenterOffset * leftRightMultiplier;
+            }
+            return this._x + Math.cos(this._centerAngle - this.angleRadians) * this._centerDistance;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "sourceY", {
+        get: function () {
+            if (this.rotateStyle === 'leftRight' || this.rotateStyle === 'none') {
+                return this._y - this._yCenterOffset;
+            }
+            return this._y - Math.sin(this._centerAngle - this.angleRadians) * this._centerDistance;
         },
         enumerable: false,
         configurable: true
@@ -1658,28 +1692,28 @@ var Sprite = (function () {
     });
     Object.defineProperty(Sprite.prototype, "rightX", {
         get: function () {
-            return this.x + this.width / 2;
+            return this.sourceX + this.width / 2;
         },
         enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "leftX", {
         get: function () {
-            return this.x - this.width / 2;
+            return this.sourceX - this.width / 2;
         },
         enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "topY", {
         get: function () {
-            return this.y - this.height / 2;
+            return this.sourceY - this.height / 2;
         },
         enumerable: false,
         configurable: true
     });
     Object.defineProperty(Sprite.prototype, "bottomY", {
         get: function () {
-            return this.y + this.height / 2;
+            return this.sourceY + this.height / 2;
         },
         enumerable: false,
         configurable: true
@@ -1721,6 +1755,32 @@ var Sprite = (function () {
     Object.defineProperty(Sprite.prototype, "stopped", {
         get: function () {
             return this._stopped;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "xCenterOffset", {
+        get: function () {
+            return this._xCenterOffset;
+        },
+        set: function (value) {
+            var prevX = this.x;
+            this._xCenterOffset = value;
+            this.calculateCenterParams();
+            this.x = prevX;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Sprite.prototype, "yCenterOffset", {
+        get: function () {
+            return this._yCenterOffset;
+        },
+        set: function (value) {
+            var prevY = this.y;
+            this._yCenterOffset = value;
+            this.calculateCenterParams();
+            this.y = prevY;
         },
         enumerable: false,
         configurable: true
@@ -1788,6 +1848,7 @@ var Sprite = (function () {
     };
     Sprite.prototype.createColliderFromCostume = function (costume) {
         this.setRectCollider(costume.width + costume.colliderPaddingLeft + costume.colliderPaddingRight, costume.height + costume.colliderPaddingTop + costume.colliderPaddingBottom);
+        this.updateColliderPosition();
     };
     Sprite.prototype.calculateCentroid = function (points) {
         var e_14, _a;
@@ -1840,6 +1901,22 @@ var Sprite = (function () {
         var width = maxX - minX;
         var height = maxY - minY;
         return { width: width, height: height };
+    };
+    Sprite.prototype.calculateCenterParams = function () {
+        this._centerDistance = Math.hypot(this._xCenterOffset, this._yCenterOffset);
+        this._centerAngle = -Math.atan2(-this._yCenterOffset, -this._xCenterOffset);
+    };
+    Sprite.prototype.updateColliderPosition = function () {
+        this.collider.x = this.sourceX;
+        this.collider.y = this.sourceY;
+    };
+    Sprite.prototype.cloneCollider = function (sprite) {
+        if (sprite.getCollider() instanceof CircleCollider) {
+            this.setCircleCollider(sprite.getCollider().radius);
+        }
+        else {
+            this.setPolygonCollider(sprite.getCollider().points);
+        }
     };
     return Sprite;
 }());
@@ -2765,12 +2842,22 @@ var Stage = (function () {
     Stage.prototype.drawSprite = function (sprite) {
         var costume = sprite.getCostume();
         var image = costume.image;
-        var dstX = sprite.x - sprite.sourceWidth / 2;
-        var dstY = sprite.y - sprite.sourceHeight / 2;
+        var dstX = sprite.sourceX - sprite.sourceWidth / 2;
+        var dstY = sprite.sourceY - sprite.sourceHeight / 2;
         var dstWidth = sprite.sourceWidth;
         var dstHeight = sprite.sourceHeight;
         var direction = sprite.direction;
         var rotateStyle = sprite.rotateStyle;
+        var xOffset = sprite.xCenterOffset;
+        var yOffset = sprite.yCenterOffset;
+        var radius = 0;
+        var radiusOffsetX = 0;
+        var radiusOffsetY = 0;
+        if (sprite.getCollider() instanceof CircleCollider) {
+            radius = sprite.getCollider().radius;
+            radiusOffsetX = (radius - (costume.width / 2)) * sprite.size / 100;
+            radiusOffsetY = (radius - (costume.height / 2)) * sprite.size / 100;
+        }
         if (rotateStyle === 'normal' && direction !== 0) {
             this.context.save();
             this.context.translate(dstX + dstWidth / 2, dstY + dstHeight / 2);
@@ -2781,10 +2868,10 @@ var Stage = (function () {
             this.context.save();
             this.context.translate(dstX + dstWidth / 2, 0);
             this.context.scale(-1, 1);
-            this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100), dstY + (costume.colliderPaddingTop * sprite.size / 100), costume.width * sprite.size / 100, costume.height * sprite.size / 100);
+            this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, (-dstWidth / 2) + (costume.colliderPaddingLeft * sprite.size / 100) + radiusOffsetX, dstY + (costume.colliderPaddingTop * sprite.size / 100) + radiusOffsetY, costume.width * sprite.size / 100, costume.height * sprite.size / 100);
         }
         else {
-            this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, dstX + (costume.colliderPaddingLeft * sprite.size / 100), dstY + (costume.colliderPaddingTop * sprite.size / 100), costume.width * sprite.size / 100, costume.height * sprite.size / 100);
+            this.context.drawImage(image, costume.x, costume.y, costume.width, costume.height, dstX + (costume.colliderPaddingLeft * sprite.size / 100) + radiusOffsetX, dstY + (costume.colliderPaddingTop * sprite.size / 100) + radiusOffsetY, costume.width * sprite.size / 100, costume.height * sprite.size / 100);
         }
         if (rotateStyle === 'normal' && direction !== 0 || rotateStyle === 'leftRight' && direction > 180) {
             this.context.restore();
@@ -2860,6 +2947,16 @@ var Stage = (function () {
                                 _this.context.fillText("direction: " + sprite.direction, x, y);
                                 y += 20;
                                 _this.context.fillText("costume: " + sprite.getCostumeIndex(), x, y);
+                                y += 20;
+                                _this.context.fillText("xOffset: " + sprite.xCenterOffset, x, y);
+                                y += 20;
+                                _this.context.fillText("yOffset: " + sprite.yCenterOffset, x, y);
+                                _this.context.beginPath();
+                                _this.context.moveTo(sprite.x - 2, sprite.y);
+                                _this.context.lineTo(sprite.x + 2, sprite.y);
+                                _this.context.moveTo(sprite.x, sprite.y - 2);
+                                _this.context.lineTo(sprite.x, sprite.y + 2);
+                                _this.context.stroke();
                             };
                             if (this_1.game.debugMode === 'hover') {
                                 if (sprite.touchMouse()) {
@@ -3701,6 +3798,7 @@ var PolygonCollider = (function (_super) {
         _this._normals = null;
         _this._dirty_coords = true;
         _this._dirty_normals = true;
+        _this._origin_points = null;
         _this.angle = angle;
         _this.scale_x = scale_x;
         _this.scale_y = scale_y;
@@ -3710,6 +3808,7 @@ var PolygonCollider = (function (_super) {
         _this._angle = angle;
         _this._scale_x = scale_x;
         _this._scale_y = scale_y;
+        _this._origin_points = points;
         PolygonCollider.prototype.setPoints.call(_this, points);
         return _this;
     }
@@ -3827,6 +3926,13 @@ var PolygonCollider = (function (_super) {
         }
         this._dirty_normals = false;
     };
+    Object.defineProperty(PolygonCollider.prototype, "points", {
+        get: function () {
+            return this._origin_points;
+        },
+        enumerable: false,
+        configurable: true
+    });
     return PolygonCollider;
 }(Collider));
 var PointCollider = (function (_super) {
